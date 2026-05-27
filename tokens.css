@@ -1,0 +1,113 @@
+/* Hallmark · tokens: Kord night practice room · genre: atmospheric · theme: custom
+ * axes: dark paper / geometric-sans / chromatic-green · pre-emit critique: P5 H4 E4 S5 R4 V4
+ */
+:root {
+  --font-display: "Tomorrow", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-paper: oklch(13.5% 0.018 268);
+  --color-paper-2: oklch(16.5% 0.021 268);
+  --color-paper-3: oklch(20.5% 0.025 268);
+  --color-panel: oklch(18% 0.023 268);
+  --color-panel-strong: oklch(23.5% 0.029 268);
+  --color-ink: oklch(94% 0.012 104);
+  --color-ink-soft: oklch(77% 0.02 108);
+  --color-ink-muted: oklch(62% 0.024 108);
+  --color-line: oklch(31% 0.03 268);
+  --color-line-strong: oklch(43% 0.041 268);
+  --color-accent: oklch(78% 0.16 148);
+  --color-accent-strong: oklch(69% 0.17 148);
+  --color-accent-soft: oklch(24% 0.058 148);
+  --color-accent-ink: oklch(13.5% 0.018 268);
+  --color-focus: oklch(84% 0.15 148);
+  --color-brass: oklch(79% 0.145 72);
+  --color-brass-soft: oklch(24% 0.053 72);
+  --color-green: oklch(74% 0.14 154);
+  --color-green-soft: oklch(24% 0.055 154);
+  --color-red: oklch(68% 0.16 28);
+  --color-red-soft: oklch(24% 0.058 28);
+  --color-root: oklch(76% 0.16 148);
+  --color-third: oklch(76% 0.14 330);
+  --color-fifth: oklch(79% 0.14 74);
+  --color-seventh: oklch(75% 0.13 226);
+  --color-shadow: oklch(7% 0.014 268 / 0.46);
+  --color-glow: oklch(78% 0.16 148 / 0.18);
+  --color-glow-warm: oklch(79% 0.145 72 / 0.14);
+  --color-grid: oklch(94% 0.012 104 / 0.045);
+  --color-transparent: transparent;
+
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-panel-strong);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-accent-ink);
+  --secondary: var(--color-paper-3);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-paper-3);
+  --muted-foreground: var(--color-ink-muted);
+  --accent: var(--color-accent-soft);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-red);
+  --destructive-foreground: var(--color-paper);
+  --border: var(--color-line);
+  --input: var(--color-line-strong);
+  --ring: var(--color-accent);
+  --chart-1: var(--color-root);
+  --chart-2: var(--color-third);
+  --chart-3: var(--color-fifth);
+  --chart-4: var(--color-seventh);
+  --chart-5: var(--color-brass);
+  --sidebar: var(--color-panel);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-accent);
+  --sidebar-primary-foreground: var(--color-accent-ink);
+  --sidebar-accent: var(--color-accent-soft);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-line);
+  --sidebar-ring: var(--color-accent);
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 3rem;
+  --text-display: 4rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  --radius-xs: 0.35rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-card: 0.5rem;
+  --radius-pill: 999px;
+  --radius-input: 0.5rem;
+  --radius: var(--radius-card);
+
+  --rule-thin: 1px;
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 200;
+}

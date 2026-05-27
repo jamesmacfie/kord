@@ -1,0 +1,11 @@
+[
+  {
+    "date": "2026-05-26",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "custom",
+    "theme_axes": "dark paper / geometric-sans / chromatic-green",
+    "enrichment": "none",
+    "brief": "Kord modern music learning app redesign"
+  }
+]

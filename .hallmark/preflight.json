@@ -1,0 +1,15 @@
+{
+  "date": "2026-05-26",
+  "font_stack": "Google Fonts Manrope + Tomorrow via src/styles.css",
+  "palette": "Root OKLCH tokens in tokens.css imported by src/styles.css",
+  "motion": "motion-cut; no Framer Motion, GSAP, or equivalent runtime",
+  "spacing": "4-point named scale in tokens.css",
+  "framework": "Vite + React + TanStack Router",
+  "preserve": [
+    "route/component ownership",
+    "Explore, Practice, Progress, Settings tab functionality",
+    "local-first practice storage",
+    "lucide icon set",
+    "mobile tab access"
+  ]
+}

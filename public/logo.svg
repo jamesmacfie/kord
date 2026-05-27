@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Kord logo</title>
+  <desc id="desc">A K monogram shaped over guitar chord grid lines.</desc>
+  <defs>
+    <linearGradient id="panel" x1="96" x2="416" y1="60" y2="452" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#202a35"/>
+      <stop offset="1" stop-color="#121821"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="130" x2="394" y1="112" y2="394" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#94f083"/>
+      <stop offset="1" stop-color="#54d978"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#111720"/>
+  <rect x="38" y="38" width="436" height="436" rx="78" fill="url(#panel)" stroke="#3d4a55" stroke-width="10"/>
+  <g opacity=".72" stroke="#6f7b84" stroke-linecap="round">
+    <path d="M112 146H398" stroke-width="8"/>
+    <path d="M112 202H398" stroke-width="8"/>
+    <path d="M112 258H398" stroke-width="8"/>
+    <path d="M112 314H398" stroke-width="8"/>
+    <path d="M112 370H398" stroke-width="8"/>
+    <path d="M154 126V390" stroke-width="7"/>
+    <path d="M226 126V390" stroke-width="7"/>
+    <path d="M298 126V390" stroke-width="7"/>
+    <path d="M370 126V390" stroke-width="7"/>
+  </g>
+  <path d="M148 116V396" fill="none" stroke="url(#accent)" stroke-linecap="round" stroke-width="48"/>
+  <path d="M184 256L354 126" fill="none" stroke="#f3f0de" stroke-linecap="round" stroke-linejoin="round" stroke-width="46"/>
+  <path d="M184 256L370 388" fill="none" stroke="#f3f0de" stroke-linecap="round" stroke-linejoin="round" stroke-width="46"/>
+  <circle cx="298" cy="169" r="19" fill="#e6b85e"/>
+  <circle cx="329" cy="360" r="19" fill="#e6b85e"/>
+  <circle cx="184" cy="256" r="22" fill="#54d978"/>
+</svg>
