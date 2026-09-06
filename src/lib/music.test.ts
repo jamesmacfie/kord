@@ -151,6 +151,30 @@ describe("music theory helpers", () => {
 		expect(chords[0].inKeyDegrees).toEqual(["1", "3", "5"]);
 	});
 
+	it("keeps a progression inside the neck zone it was asked for", () => {
+		const template = PROGRESSION_TEMPLATES.find(
+			(item) => item.id === "pop-axis",
+		);
+
+		if (!template) {
+			throw new Error("pop-axis template is missing");
+		}
+
+		const open = buildProgression(template, "C", "smart", "open");
+		const upper = buildProgression(template, "C", "smart", "upper");
+
+		expect(open).toHaveLength(4);
+		expect(upper).toHaveLength(4);
+
+		for (const chord of open) {
+			expect(chord.voicing.avgFret).toBeLessThanOrEqual(4.5);
+		}
+
+		for (const chord of upper) {
+			expect(chord.voicing.avgFret).toBeGreaterThanOrEqual(6.5);
+		}
+	});
+
 	it("spells the raised seventh that carries the major V", () => {
 		expect(chordNotes(4, "major", "smart", "Am")).toEqual(["E", "G#", "B"]);
 		expect(chordInKeyDegrees(4, "major", "Am")).toEqual(["5", "#7", "2"]);

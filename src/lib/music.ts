@@ -1387,6 +1387,7 @@ export function buildProgression(
 	template: ProgressionTemplate,
 	keyName: string,
 	preference: AccidentalPreference = "smart",
+	neckZone: NeckZone = "any",
 ): GeneratedChord[] {
 	const key = getKeyDefinition(keyName);
 
@@ -1402,7 +1403,7 @@ export function buildProgression(
 			SHAPE_FAMILIES,
 			preference,
 			key.name,
-			"any",
+			neckZone,
 		),
 	);
 

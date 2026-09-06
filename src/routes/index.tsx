@@ -550,8 +550,14 @@ function ProgressionsPage({
 		[templates],
 	);
 	const chords = useMemo(
-		() => buildProgression(template, keyName, prefs.accidentalPreference),
-		[keyName, prefs.accidentalPreference, template],
+		() =>
+			buildProgression(
+				template,
+				keyName,
+				prefs.accidentalPreference,
+				prefs.neckZone,
+			),
+		[keyName, prefs.accidentalPreference, prefs.neckZone, template],
 	);
 
 	return (
@@ -572,6 +578,20 @@ function ProgressionsPage({
 							onChange={(event) => setKeyName(event.target.value)}
 						>
 							<KeyOptions />
+						</select>
+					</Field>
+					<Field label="Neck position">
+						<select
+							className="control"
+							value={prefs.neckZone}
+							onChange={(event) =>
+								updatePrefs({ neckZone: event.target.value as NeckZone })
+							}
+						>
+							<option value="open">Open / low</option>
+							<option value="mid">Middle</option>
+							<option value="upper">Upper</option>
+							<option value="any">Any</option>
 						</select>
 					</Field>
 					<Field label="Progression">
