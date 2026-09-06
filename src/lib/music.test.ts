@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildProgression,
 	chordInKeyDegrees,
 	chordNotes,
 	generatePracticeSet,
 	getVoicings,
+	KEY_DEFINITIONS,
+	PROGRESSION_TEMPLATES,
 	parseChordSymbol,
 	QUALITY_DEFINITIONS,
 	type QualityId,
 	SHAPE_FAMILIES,
 } from "./music";
+
+const MINOR_ALLOWED: Record<number, QualityId[]> = {
+	1: ["minor", "min7"],
+	2: ["diminished", "half-diminished"],
+	3: ["major", "maj7"],
+	4: ["minor", "min7"],
+	5: ["minor", "min7", "major", "7"],
+	6: ["major", "maj7"],
+	7: ["major", "7"],
+};
 
 const STRICT_ALLOWED: Record<number, QualityId[]> = {
 	1: ["major", "maj7"],
@@ -88,6 +101,92 @@ describe("music theory helpers", () => {
 
 		for (const chord of result.set.generatedChords) {
 			expect(STRICT_ALLOWED[chord.degree]).toContain(chord.quality);
+		}
+	});
+
+	it("builds a chosen progression with its own fixed qualities", () => {
+		const template = PROGRESSION_TEMPLATES.find(
+			(item) => item.id === "neo-soul-vamp",
+		);
+
+		if (!template) {
+			throw new Error("neo-soul-vamp template is missing");
+		}
+
+		const chords = buildProgression(template, "G");
+
+		expect(chords.map((chord) => chord.symbol)).toEqual(["Gmaj7", "Cmaj7"]);
+		expect(chords.map((chord) => chord.roman)).toEqual(["Imaj7", "IVmaj7"]);
+	});
+
+	it("lowers borrowed degrees and labels them with a flat", () => {
+		const template = PROGRESSION_TEMPLATES.find(
+			(item) => item.id === "mixolydian-rock",
+		);
+
+		if (!template) {
+			throw new Error("mixolydian-rock template is missing");
+		}
+
+		const chords = buildProgression(template, "C");
+
+		expect(chords.map((chord) => chord.symbol)).toEqual(["C", "Bb", "F"]);
+		expect(chords.map((chord) => chord.roman)).toEqual(["I", "bVII", "IV"]);
+		expect(chords[1].inKeyDegrees).toEqual(["b7", "2", "4"]);
+	});
+
+	it("spells a minor key off the natural minor scale", () => {
+		const template = PROGRESSION_TEMPLATES.find(
+			(item) => item.id === "andalusian",
+		);
+
+		if (!template) {
+			throw new Error("andalusian template is missing");
+		}
+
+		const chords = buildProgression(template, "Am");
+
+		expect(chords.map((chord) => chord.symbol)).toEqual(["Am", "G", "F", "E"]);
+		expect(chords.map((chord) => chord.roman)).toEqual(["i", "VII", "VI", "V"]);
+		expect(chords[0].inKeyDegrees).toEqual(["1", "3", "5"]);
+	});
+
+	it("spells the raised seventh that carries the major V", () => {
+		expect(chordNotes(4, "major", "smart", "Am")).toEqual(["E", "G#", "B"]);
+		expect(chordInKeyDegrees(4, "major", "Am")).toEqual(["5", "#7", "2"]);
+		expect(chordNotes(7, "major", "smart", "Cm")).toEqual(["G", "B", "D"]);
+		expect(chordNotes(0, "major", "smart", "Fm")).toEqual(["C", "E", "G"]);
+	});
+
+	it("keeps minor generated progressions inside the minor candidate map", () => {
+		const result = generatePracticeSet({
+			keyName: "Em",
+			mode: "strict",
+			enabledQualities: Object.keys(QUALITY_DEFINITIONS) as QualityId[],
+			allowedShapes: SHAPE_FAMILIES,
+			neckZone: "any",
+			switchPractice: true,
+			accidentalPreference: "smart",
+		});
+
+		expect(result.ok).toBe(true);
+
+		if (!result.ok) {
+			return;
+		}
+
+		for (const chord of result.set.generatedChords) {
+			expect(MINOR_ALLOWED[chord.degree]).toContain(chord.quality);
+		}
+	});
+
+	it("only offers a key the progressions written for its mode", () => {
+		for (const key of KEY_DEFINITIONS) {
+			const matching = PROGRESSION_TEMPLATES.filter(
+				(template) => template.keyMode === key.mode,
+			);
+
+			expect(matching.length).toBeGreaterThan(0);
 		}
 	});
 });

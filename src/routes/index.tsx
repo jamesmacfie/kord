@@ -7,6 +7,7 @@ import {
 	ChevronRight,
 	Download,
 	Import,
+	ListMusic,
 	Play,
 	RefreshCcw,
 	RotateCcw,
@@ -31,6 +32,7 @@ import { Label } from "#/components/ui/label.tsx";
 import { Switch } from "#/components/ui/switch.tsx";
 import {
 	type AccidentalPreference,
+	buildProgression,
 	buildVoicing,
 	chordInKeyDegrees,
 	chordNotes,
@@ -68,7 +70,7 @@ import {
 
 export const Route = createFileRoute("/")({ component: Home });
 
-type AppTab = "explore" | "practice" | "progress" | "settings";
+type AppTab = "explore" | "progressions" | "practice" | "progress" | "settings";
 type ContextMode = "absolute" | "key";
 type ShapeChoice = ShapeFamily | "any";
 type NotationPreference = "roman-arabic" | "arabic-first";
@@ -77,6 +79,7 @@ interface UserPrefs {
 	accidentalPreference: AccidentalPreference;
 	notationPreference: NotationPreference;
 	leftHanded: boolean;
+	showFingerings: boolean;
 	defaultTimerMinutes: number;
 	keyName: string;
 	mode: GenerationMode;
@@ -94,11 +97,14 @@ interface CoverageItem {
 }
 
 const PREFS_KEY = "kord.userPrefs";
+const MAJOR_KEYS = KEY_DEFINITIONS.filter((key) => key.mode === "major");
+const MINOR_KEYS = KEY_DEFINITIONS.filter((key) => key.mode === "minor");
 const TIMER_PRESETS = [5, 10, 15];
 const DEFAULT_PREFS: UserPrefs = {
 	accidentalPreference: "smart",
 	notationPreference: "roman-arabic",
 	leftHanded: false,
+	showFingerings: true,
 	defaultTimerMinutes: 5,
 	keyName: "random",
 	mode: "strict",
@@ -217,6 +223,12 @@ function Home() {
 						onClick={() => setActiveTab("explore")}
 					/>
 					<TabButton
+						active={activeTab === "progressions"}
+						icon={ListMusic}
+						label="Progressions"
+						onClick={() => setActiveTab("progressions")}
+					/>
+					<TabButton
 						active={activeTab === "practice"}
 						icon={Timer}
 						label="Practice"
@@ -239,6 +251,9 @@ function Home() {
 
 			{activeTab === "explore" ? (
 				<ExplorePage prefs={prefs} updatePrefs={updatePrefs} />
+			) : null}
+			{activeTab === "progressions" ? (
+				<ProgressionsPage prefs={prefs} updatePrefs={updatePrefs} />
 			) : null}
 			{activeTab === "practice" ? (
 				<PracticePage
@@ -435,11 +450,7 @@ function ExplorePage({
 							value={contextKey}
 							onChange={(event) => setContextKey(event.target.value)}
 						>
-							{KEY_DEFINITIONS.map((keyOption) => (
-								<option key={keyOption.name} value={keyOption.name}>
-									{keyOption.name} major
-								</option>
-							))}
+							<KeyOptions />
 						</select>
 					</Field>
 				) : null}
@@ -474,7 +485,7 @@ function ExplorePage({
 						<h2>{symbol}</h2>
 						<p>
 							{QUALITY_DEFINITIONS[quality].label} chord in{" "}
-							{contextMode === "key" ? `${contextKey} major` : "absolute view"}
+							{contextMode === "key" ? keyLabel(contextKey) : "absolute view"}
 						</p>
 					</div>
 					<div className="symbol-badge">
@@ -499,19 +510,134 @@ function ExplorePage({
 						/>
 						{key ? (
 							<>
-								<InfoBlock
-									label={`${key.name} major notes`}
-									values={key.notes}
-								/>
+								<InfoBlock label={`${key.label} notes`} values={key.notes} />
 								<InfoBlock label="In-key degrees" values={inKeyDegrees} />
 							</>
 						) : (
 							<div className="empty-note">
-								Choose In key to map the chord tones back to a major-key number
-								system.
+								Choose In key to map the chord tones back to the number system
+								of a major or minor key.
 							</div>
 						)}
 					</div>
+				</div>
+			</div>
+		</section>
+	);
+}
+
+function ProgressionsPage({
+	prefs,
+	updatePrefs,
+}: {
+	prefs: UserPrefs;
+	updatePrefs: (patch: Partial<UserPrefs>) => void;
+}) {
+	const [keyName, setKeyName] = useState("C");
+	const [templateId, setTemplateId] = useState(PROGRESSION_TEMPLATES[0].id);
+
+	const key = getKeyDefinition(keyName) ?? KEY_DEFINITIONS[0];
+	const templates = useMemo(
+		() => PROGRESSION_TEMPLATES.filter((item) => item.keyMode === key.mode),
+		[key.mode],
+	);
+	// Switching to a minor key swaps the whole list, so fall back to its first
+	// entry rather than stranding the page on a major-key selection.
+	const template =
+		templates.find((item) => item.id === templateId) ?? templates[0];
+	const styles = useMemo(
+		() => Array.from(new Set(templates.map((item) => item.styleTag))),
+		[templates],
+	);
+	const chords = useMemo(
+		() => buildProgression(template, keyName, prefs.accidentalPreference),
+		[keyName, prefs.accidentalPreference, template],
+	);
+
+	return (
+		<section className="workspace-grid">
+			<div className="panel control-panel">
+				<div className="section-heading">
+					<div>
+						<p className="eyebrow">Progression builder</p>
+						<h2>Pick a key and a progression</h2>
+					</div>
+				</div>
+
+				<div className="field-grid">
+					<Field label="Key">
+						<select
+							className="control"
+							value={keyName}
+							onChange={(event) => setKeyName(event.target.value)}
+						>
+							<KeyOptions />
+						</select>
+					</Field>
+					<Field label="Progression">
+						<select
+							className="control"
+							value={template.id}
+							onChange={(event) => setTemplateId(event.target.value)}
+						>
+							{styles.map((style) => (
+								<optgroup key={style} label={style}>
+									{templates
+										.filter((item) => item.styleTag === style)
+										.map((item) => (
+											<option key={item.id} value={item.id}>
+												{item.name}
+											</option>
+										))}
+								</optgroup>
+							))}
+						</select>
+					</Field>
+				</div>
+
+				<p className="helper-text">{template.example}</p>
+
+				<div className="switch-row">
+					<div>
+						<Label htmlFor="show-fingerings">Show finger placements</Label>
+						<p className="helper-text">
+							Turn this off to read the chords as symbols alone.
+						</p>
+					</div>
+					<Switch
+						checked={prefs.showFingerings}
+						id="show-fingerings"
+						onCheckedChange={(checked) =>
+							updatePrefs({ showFingerings: checked })
+						}
+					/>
+				</div>
+			</div>
+
+			<div className="panel chord-study-panel">
+				<div className="chord-hero">
+					<div>
+						<p className="eyebrow">{template.styleTag}</p>
+						<h2>{template.name}</h2>
+						<p>
+							{chords.map((chord) => chord.symbol).join("  \u00b7  ")} in{" "}
+							{key.label}
+						</p>
+					</div>
+					<div className="symbol-badge">{keyName}</div>
+				</div>
+
+				<div className="practice-chords progression-chords">
+					{chords.map((chord, index) => (
+						<PracticeChordCard
+							chord={chord}
+							index={index}
+							key={chord.id}
+							leftHanded={prefs.leftHanded}
+							notationPreference={prefs.notationPreference}
+							showDiagram={prefs.showFingerings}
+						/>
+					))}
 				</div>
 			</div>
 		</section>
@@ -657,12 +783,8 @@ function PracticePage({
 							value={prefs.keyName}
 							onChange={(event) => updatePrefs({ keyName: event.target.value })}
 						>
-							<option value="random">Random major key</option>
-							{KEY_DEFINITIONS.map((key) => (
-								<option key={key.name} value={key.name}>
-									{key.name} major
-								</option>
-							))}
+							<option value="random">Random key</option>
+							<KeyOptions />
 						</select>
 					</Field>
 					<Field label="Mode">
@@ -753,12 +875,12 @@ function PracticePage({
 							<div>
 								<p className="eyebrow">{currentSet.styleTag}</p>
 								<h2>
-									{currentSet.key} major · {currentSet.templateName}
+									{keyLabel(currentSet.key)} · {currentSet.templateName}
 								</h2>
 							</div>
 							<ul
 								className="key-notes"
-								aria-label={`${currentSet.key} major notes`}
+								aria-label={`${keyLabel(currentSet.key)} notes`}
 							>
 								{currentSet.keyNotes.map((note) => (
 									<li key={note}>{note}</li>
@@ -942,7 +1064,7 @@ function ProgressPage({
 					<MetricCard label="Completed sessions" value={`${sessions.length}`} />
 					<MetricCard
 						label="Keys touched"
-						value={`${summary.keys.filter((item) => item.count > 0).length}/12`}
+						value={`${summary.keys.filter((item) => item.count > 0).length}/${summary.keys.length}`}
 					/>
 					<MetricCard
 						label="Shapes touched"
@@ -1237,11 +1359,13 @@ function PracticeChordCard({
 	index,
 	leftHanded,
 	notationPreference,
+	showDiagram = true,
 }: {
 	chord: GeneratedChord;
 	index: number;
 	leftHanded: boolean;
 	notationPreference: NotationPreference;
+	showDiagram?: boolean;
 }) {
 	const primaryDegree =
 		notationPreference === "arabic-first"
@@ -1258,7 +1382,9 @@ function PracticeChordCard({
 				</div>
 				<span className="shape-pill">{chord.shapeFamily}</span>
 			</div>
-			<FretDiagram compact leftHanded={leftHanded} voicing={chord.voicing} />
+			{showDiagram ? (
+				<FretDiagram compact leftHanded={leftHanded} voicing={chord.voicing} />
+			) : null}
 			<div className="card-facts">
 				<InfoBlock compact label="Formula" values={chord.formula} />
 				<InfoBlock compact label="Notes" values={chord.notes} />
@@ -1279,7 +1405,7 @@ function PracticeMemory({ sessions }: { sessions: PracticeSession[] }) {
 			</div>
 			{lastSession ? (
 				<p>
-					{lastSession.practiceSet.key} major ·{" "}
+					{keyLabel(lastSession.practiceSet.key)} ·{" "}
 					{lastSession.practiceSet.templateName} ·{" "}
 					{formatDuration(lastSession.timerSeconds)}
 				</p>
@@ -1291,6 +1417,31 @@ function PracticeMemory({ sessions }: { sessions: PracticeSession[] }) {
 			)}
 		</div>
 	);
+}
+
+function KeyOptions() {
+	return (
+		<>
+			<optgroup label="Major">
+				{MAJOR_KEYS.map((key) => (
+					<option key={key.name} value={key.name}>
+						{key.label}
+					</option>
+				))}
+			</optgroup>
+			<optgroup label="Minor">
+				{MINOR_KEYS.map((key) => (
+					<option key={key.name} value={key.name}>
+						{key.label}
+					</option>
+				))}
+			</optgroup>
+		</>
+	);
+}
+
+function keyLabel(name: string) {
+	return getKeyDefinition(name)?.label ?? name;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

@@ -1,5 +1,6 @@
 export type AccidentalPreference = "smart" | "sharps" | "flats";
 export type GenerationMode = "strict" | "blues";
+export type KeyMode = "major" | "minor";
 export type NeckZone = "any" | "open" | "mid" | "upper";
 export type ShapeFamily = "C" | "A" | "G" | "E" | "D";
 export type QualityId =
@@ -23,6 +24,8 @@ export interface QualityDefinition {
 
 export interface KeyDefinition {
 	name: string;
+	label: string;
+	mode: KeyMode;
 	tonicPc: number;
 	notes: string[];
 }
@@ -86,13 +89,20 @@ export interface GeneratedChord {
 	voicing: ChordVoicing;
 }
 
+export interface ProgressionStep {
+	degree: number;
+	quality: QualityId;
+	flat?: boolean;
+}
+
 export interface ProgressionTemplate {
 	id: string;
 	name: string;
 	mode: GenerationMode;
-	romanDegrees: number[];
-	allowsRepeats: boolean;
+	keyMode: KeyMode;
+	steps: ProgressionStep[];
 	styleTag: string;
+	example: string;
 	weight: number;
 }
 
@@ -209,18 +219,174 @@ export const ROOT_OPTIONS: NoteOption[] = [
 ];
 
 export const KEY_DEFINITIONS: KeyDefinition[] = [
-	{ name: "C", tonicPc: 0, notes: ["C", "D", "E", "F", "G", "A", "B"] },
-	{ name: "G", tonicPc: 7, notes: ["G", "A", "B", "C", "D", "E", "F#"] },
-	{ name: "D", tonicPc: 2, notes: ["D", "E", "F#", "G", "A", "B", "C#"] },
-	{ name: "A", tonicPc: 9, notes: ["A", "B", "C#", "D", "E", "F#", "G#"] },
-	{ name: "E", tonicPc: 4, notes: ["E", "F#", "G#", "A", "B", "C#", "D#"] },
-	{ name: "B", tonicPc: 11, notes: ["B", "C#", "D#", "E", "F#", "G#", "A#"] },
-	{ name: "F#", tonicPc: 6, notes: ["F#", "G#", "A#", "B", "C#", "D#", "E#"] },
-	{ name: "Db", tonicPc: 1, notes: ["Db", "Eb", "F", "Gb", "Ab", "Bb", "C"] },
-	{ name: "Ab", tonicPc: 8, notes: ["Ab", "Bb", "C", "Db", "Eb", "F", "G"] },
-	{ name: "Eb", tonicPc: 3, notes: ["Eb", "F", "G", "Ab", "Bb", "C", "D"] },
-	{ name: "Bb", tonicPc: 10, notes: ["Bb", "C", "D", "Eb", "F", "G", "A"] },
-	{ name: "F", tonicPc: 5, notes: ["F", "G", "A", "Bb", "C", "D", "E"] },
+	{
+		name: "C",
+		label: "C major",
+		mode: "major",
+		tonicPc: 0,
+		notes: ["C", "D", "E", "F", "G", "A", "B"],
+	},
+	{
+		name: "G",
+		label: "G major",
+		mode: "major",
+		tonicPc: 7,
+		notes: ["G", "A", "B", "C", "D", "E", "F#"],
+	},
+	{
+		name: "D",
+		label: "D major",
+		mode: "major",
+		tonicPc: 2,
+		notes: ["D", "E", "F#", "G", "A", "B", "C#"],
+	},
+	{
+		name: "A",
+		label: "A major",
+		mode: "major",
+		tonicPc: 9,
+		notes: ["A", "B", "C#", "D", "E", "F#", "G#"],
+	},
+	{
+		name: "E",
+		label: "E major",
+		mode: "major",
+		tonicPc: 4,
+		notes: ["E", "F#", "G#", "A", "B", "C#", "D#"],
+	},
+	{
+		name: "B",
+		label: "B major",
+		mode: "major",
+		tonicPc: 11,
+		notes: ["B", "C#", "D#", "E", "F#", "G#", "A#"],
+	},
+	{
+		name: "F#",
+		label: "F# major",
+		mode: "major",
+		tonicPc: 6,
+		notes: ["F#", "G#", "A#", "B", "C#", "D#", "E#"],
+	},
+	{
+		name: "Db",
+		label: "Db major",
+		mode: "major",
+		tonicPc: 1,
+		notes: ["Db", "Eb", "F", "Gb", "Ab", "Bb", "C"],
+	},
+	{
+		name: "Ab",
+		label: "Ab major",
+		mode: "major",
+		tonicPc: 8,
+		notes: ["Ab", "Bb", "C", "Db", "Eb", "F", "G"],
+	},
+	{
+		name: "Eb",
+		label: "Eb major",
+		mode: "major",
+		tonicPc: 3,
+		notes: ["Eb", "F", "G", "Ab", "Bb", "C", "D"],
+	},
+	{
+		name: "Bb",
+		label: "Bb major",
+		mode: "major",
+		tonicPc: 10,
+		notes: ["Bb", "C", "D", "Eb", "F", "G", "A"],
+	},
+	{
+		name: "F",
+		label: "F major",
+		mode: "major",
+		tonicPc: 5,
+		notes: ["F", "G", "A", "Bb", "C", "D", "E"],
+	},
+	{
+		name: "Am",
+		label: "A minor",
+		mode: "minor",
+		tonicPc: 9,
+		notes: ["A", "B", "C", "D", "E", "F", "G"],
+	},
+	{
+		name: "Em",
+		label: "E minor",
+		mode: "minor",
+		tonicPc: 4,
+		notes: ["E", "F#", "G", "A", "B", "C", "D"],
+	},
+	{
+		name: "Bm",
+		label: "B minor",
+		mode: "minor",
+		tonicPc: 11,
+		notes: ["B", "C#", "D", "E", "F#", "G", "A"],
+	},
+	{
+		name: "F#m",
+		label: "F# minor",
+		mode: "minor",
+		tonicPc: 6,
+		notes: ["F#", "G#", "A", "B", "C#", "D", "E"],
+	},
+	{
+		name: "C#m",
+		label: "C# minor",
+		mode: "minor",
+		tonicPc: 1,
+		notes: ["C#", "D#", "E", "F#", "G#", "A", "B"],
+	},
+	{
+		name: "G#m",
+		label: "G# minor",
+		mode: "minor",
+		tonicPc: 8,
+		notes: ["G#", "A#", "B", "C#", "D#", "E", "F#"],
+	},
+	{
+		name: "D#m",
+		label: "D# minor",
+		mode: "minor",
+		tonicPc: 3,
+		notes: ["D#", "E#", "F#", "G#", "A#", "B", "C#"],
+	},
+	{
+		name: "Bbm",
+		label: "Bb minor",
+		mode: "minor",
+		tonicPc: 10,
+		notes: ["Bb", "C", "Db", "Eb", "F", "Gb", "Ab"],
+	},
+	{
+		name: "Fm",
+		label: "F minor",
+		mode: "minor",
+		tonicPc: 5,
+		notes: ["F", "G", "Ab", "Bb", "C", "Db", "Eb"],
+	},
+	{
+		name: "Cm",
+		label: "C minor",
+		mode: "minor",
+		tonicPc: 0,
+		notes: ["C", "D", "Eb", "F", "G", "Ab", "Bb"],
+	},
+	{
+		name: "Gm",
+		label: "G minor",
+		mode: "minor",
+		tonicPc: 7,
+		notes: ["G", "A", "Bb", "C", "D", "Eb", "F"],
+	},
+	{
+		name: "Dm",
+		label: "D minor",
+		mode: "minor",
+		tonicPc: 2,
+		notes: ["D", "E", "F", "G", "A", "Bb", "C"],
+	},
 ];
 
 export const QUALITY_DEFINITIONS: Record<QualityId, QualityDefinition> = {
@@ -304,68 +470,342 @@ export const PROGRESSION_TEMPLATES: ProgressionTemplate[] = [
 		id: "pop-axis",
 		name: "I-V-vi-IV",
 		mode: "strict",
-		romanDegrees: [1, 5, 6, 4],
-		allowsRepeats: false,
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "major" },
+			{ degree: 5, quality: "major" },
+			{ degree: 6, quality: "minor" },
+			{ degree: 4, quality: "major" },
+		],
 		styleTag: "Pop",
+		example: "Let It Be, Don't Stop Believin', With or Without You",
 		weight: 10,
 	},
 	{
 		id: "pop-reverse-start",
 		name: "vi-IV-I-V",
 		mode: "strict",
-		romanDegrees: [6, 4, 1, 5],
-		allowsRepeats: false,
-		styleTag: "Pop reverse start",
+		keyMode: "major",
+		steps: [
+			{ degree: 6, quality: "minor" },
+			{ degree: 4, quality: "major" },
+			{ degree: 1, quality: "major" },
+			{ degree: 5, quality: "major" },
+		],
+		styleTag: "Pop",
+		example: "Grenade, Despacito, plenty of Rolling Stones",
 		weight: 8,
 	},
 	{
 		id: "doo-wop",
 		name: "I-vi-IV-V",
 		mode: "strict",
-		romanDegrees: [1, 6, 4, 5],
-		allowsRepeats: false,
-		styleTag: "Doo-wop family",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "major" },
+			{ degree: 6, quality: "minor" },
+			{ degree: 4, quality: "major" },
+			{ degree: 5, quality: "major" },
+		],
+		styleTag: "Doo-wop",
+		example: "Stand By Me, Earth Angel, Every Breath You Take",
 		weight: 7,
 	},
 	{
-		id: "cadential-jazz-pop",
-		name: "ii-V-I-vi",
+		id: "royal-road",
+		name: "IV-V-iii-vi",
 		mode: "strict",
-		romanDegrees: [2, 5, 1, 6],
-		allowsRepeats: false,
-		styleTag: "Cadential jazz/pop",
-		weight: 6,
+		keyMode: "major",
+		steps: [
+			{ degree: 4, quality: "major" },
+			{ degree: 5, quality: "major" },
+			{ degree: 3, quality: "minor" },
+			{ degree: 6, quality: "minor" },
+		],
+		styleTag: "J-pop",
+		example: "The royal road turn, all over anime and city pop",
+		weight: 4,
 	},
 	{
-		id: "circle-motion",
-		name: "vi-ii-V-I",
+		id: "rock-three-chord",
+		name: "I-IV-V",
 		mode: "strict",
-		romanDegrees: [6, 2, 5, 1],
-		allowsRepeats: false,
-		styleTag: "Circle motion",
-		weight: 6,
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "major" },
+			{ degree: 4, quality: "major" },
+			{ degree: 5, quality: "major" },
+		],
+		styleTag: "Rock",
+		example: "La Bamba, Twist and Shout, most early rock and roll",
+		weight: 5,
+	},
+	{
+		id: "rock-garage-loop",
+		name: "I-IV-V-IV",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "major" },
+			{ degree: 4, quality: "major" },
+			{ degree: 5, quality: "major" },
+			{ degree: 4, quality: "major" },
+		],
+		styleTag: "Rock",
+		example: "Wild Thing, Louie Louie",
+		weight: 4,
+	},
+	{
+		id: "mixolydian-rock",
+		name: "I-bVII-IV",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "major" },
+			{ degree: 7, quality: "major", flat: true },
+			{ degree: 4, quality: "major" },
+		],
+		styleTag: "Rock",
+		example: "Sweet Home Alabama, Sweet Child O' Mine, Royals",
+		weight: 4,
+	},
+	{
+		id: "andalusian",
+		name: "i-VII-VI-V",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "minor" },
+			{ degree: 7, quality: "major" },
+			{ degree: 6, quality: "major" },
+			{ degree: 5, quality: "major" },
+		],
+		styleTag: "Minor",
+		example: "Hit the Road Jack, Sultans of Swing, flamenco",
+		weight: 5,
+	},
+	{
+		id: "minor-vamp",
+		name: "i-VII-VI-VII",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "minor" },
+			{ degree: 7, quality: "major" },
+			{ degree: 6, quality: "major" },
+			{ degree: 7, quality: "major" },
+		],
+		styleTag: "Minor",
+		example: "The same descent, looping instead of resolving",
+		weight: 4,
+	},
+	{
+		id: "minor-axis",
+		name: "i-VI-III-VII",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "minor" },
+			{ degree: 6, quality: "major" },
+			{ degree: 3, quality: "major" },
+			{ degree: 7, quality: "major" },
+		],
+		styleTag: "Minor",
+		example: "Zombie, Save Tonight",
+		weight: 8,
+	},
+	{
+		id: "minor-lift",
+		name: "VI-VII-i",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 6, quality: "major" },
+			{ degree: 7, quality: "major" },
+			{ degree: 1, quality: "minor" },
+		],
+		styleTag: "Minor",
+		example: "The Wonderwall prechorus, Bad Romance",
+		weight: 5,
+	},
+	{
+		id: "minor-three-chord",
+		name: "i-iv-v",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "minor" },
+			{ degree: 4, quality: "minor" },
+			{ degree: 5, quality: "minor" },
+		],
+		styleTag: "Minor",
+		example: "The plain minor answer to I-IV-V",
+		weight: 4,
+	},
+	{
+		id: "minor-cadence",
+		name: "i-iv-V",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "minor" },
+			{ degree: 4, quality: "minor" },
+			{ degree: 5, quality: "major" },
+		],
+		styleTag: "Minor",
+		example: "A major V borrowed from harmonic minor, so it pulls home",
+		weight: 4,
+	},
+	{
+		id: "minor-blues",
+		name: "i7-iv7-i7-V7",
+		mode: "blues",
+		keyMode: "minor",
+		steps: [
+			{ degree: 1, quality: "min7" },
+			{ degree: 4, quality: "min7" },
+			{ degree: 1, quality: "min7" },
+			{ degree: 5, quality: "7" },
+		],
+		styleTag: "Blues",
+		example: "Minor sevenths on i and iv, a dominant V to turn it around",
+		weight: 5,
+	},
+	{
+		id: "minor-two-five-one",
+		name: "iim7b5-V7-i7",
+		mode: "strict",
+		keyMode: "minor",
+		steps: [
+			{ degree: 2, quality: "half-diminished" },
+			{ degree: 5, quality: "7" },
+			{ degree: 1, quality: "min7" },
+		],
+		styleTag: "Jazz",
+		example: "The minor 2-5-1, all over jazz and Latin standards",
+		weight: 5,
 	},
 	{
 		id: "blues-turnaround",
 		name: "I7-IV7-I7-V7",
 		mode: "blues",
-		romanDegrees: [1, 4, 1, 5],
-		allowsRepeats: true,
-		styleTag: "Blues color",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "7" },
+			{ degree: 4, quality: "7" },
+			{ degree: 1, quality: "7" },
+			{ degree: 5, quality: "7" },
+		],
+		styleTag: "Blues",
+		example: "The bones of a 12-bar blues",
 		weight: 7,
 	},
 	{
 		id: "blues-walk-home",
 		name: "I7-IV7-V7-I7",
 		mode: "blues",
-		romanDegrees: [1, 4, 5, 1],
-		allowsRepeats: true,
-		styleTag: "Blues color",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "7" },
+			{ degree: 4, quality: "7" },
+			{ degree: 5, quality: "7" },
+			{ degree: 1, quality: "7" },
+		],
+		styleTag: "Blues",
+		example: "The walk home at the end of a blues chorus",
 		weight: 5,
+	},
+	{
+		id: "two-five-one",
+		name: "ii7-V7-Imaj7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 2, quality: "min7" },
+			{ degree: 5, quality: "7" },
+			{ degree: 1, quality: "maj7" },
+		],
+		styleTag: "Jazz",
+		example: "The turnaround under most jazz and R&B standards",
+		weight: 5,
+	},
+	{
+		id: "circle-motion",
+		name: "vi7-ii7-V7-Imaj7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 6, quality: "min7" },
+			{ degree: 2, quality: "min7" },
+			{ degree: 5, quality: "7" },
+			{ degree: 1, quality: "maj7" },
+		],
+		styleTag: "Jazz",
+		example: "Roots falling in fourths, smooth to voice-lead",
+		weight: 6,
+	},
+	{
+		id: "cadential-jazz-pop",
+		name: "ii7-V7-Imaj7-vi7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 2, quality: "min7" },
+			{ degree: 5, quality: "7" },
+			{ degree: 1, quality: "maj7" },
+			{ degree: 6, quality: "min7" },
+		],
+		styleTag: "Jazz",
+		example: "A 2-5-1 that hands you back to the top",
+		weight: 6,
+	},
+	{
+		id: "neo-soul-vamp",
+		name: "Imaj7-IVmaj7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "maj7" },
+			{ degree: 4, quality: "maj7" },
+		],
+		styleTag: "Neo-soul",
+		example: "The two-chord rock that neo-soul and lo-fi live on",
+		weight: 4,
+	},
+	{
+		id: "neo-soul-minor-vamp",
+		name: "vi7-IVmaj7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 6, quality: "min7" },
+			{ degree: 4, quality: "maj7" },
+		],
+		styleTag: "Neo-soul",
+		example: "The minor-to-major lift, warmer than it looks",
+		weight: 3,
+	},
+	{
+		id: "neo-soul-descent",
+		name: "Imaj7-iii7-vi7-IVmaj7",
+		mode: "strict",
+		keyMode: "major",
+		steps: [
+			{ degree: 1, quality: "maj7" },
+			{ degree: 3, quality: "min7" },
+			{ degree: 6, quality: "min7" },
+			{ degree: 4, quality: "maj7" },
+		],
+		styleTag: "Neo-soul",
+		example: "Sevenths on every chord, the R&B ballad shape",
+		weight: 4,
 	},
 ];
 
-const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
+const SCALE_INTERVALS: Record<KeyMode, number[]> = {
+	major: [0, 2, 4, 5, 7, 9, 11],
+	minor: [0, 2, 3, 5, 7, 8, 10],
+};
 
 const STRICT_QUALITY_CANDIDATES: Record<number, QualityId[]> = {
 	1: ["major", "maj7"],
@@ -385,6 +825,18 @@ const BLUES_QUALITY_CANDIDATES: Record<number, QualityId[]> = {
 	5: ["7", "major"],
 	6: ["minor", "min7"],
 	7: ["diminished", "half-diminished"],
+};
+
+// Natural minor, except degree 5, which also offers the major and dominant
+// chords that harmonic minor supplies. Most minor music leans on that V.
+const MINOR_QUALITY_CANDIDATES: Record<number, QualityId[]> = {
+	1: ["minor", "min7"],
+	2: ["diminished", "half-diminished"],
+	3: ["major", "maj7"],
+	4: ["minor", "min7"],
+	5: ["minor", "min7", "major", "7"],
+	6: ["major", "maj7"],
+	7: ["major", "7"],
 };
 
 const SHAPE_TEMPLATES: Record<ShapeFamily, ShapeTemplate> = {
@@ -545,6 +997,14 @@ export function noteNameForPc(
 		return keyNote;
 	}
 
+	if (key && isRaisedSeventh(key, normalizedPc)) {
+		const raised = raisedSeventhName(key);
+
+		if (raised) {
+			return raised;
+		}
+	}
+
 	if (preference === "sharps") {
 		return SHARP_NAMES[normalizedPc];
 	}
@@ -562,9 +1022,24 @@ export function getKeyDefinition(name: string) {
 	return KEY_DEFINITIONS.find((key) => key.name === name);
 }
 
-export function getMajorScalePcs(keyName: string) {
+// Harmonic minor raises the seventh, which is how a minor key gets a major V.
+// The note sits outside the natural minor scale, so it needs its own spelling
+// and its own degree, or E major in A minor reads as "E Ab B" at degree b1.
+function isRaisedSeventh(key: KeyDefinition, pc: number) {
+	return key.mode === "minor" && mod(pc, 12) === mod(key.tonicPc - 1, 12);
+}
+
+function raisedSeventhName(key: KeyDefinition) {
+	const seventh = key.notes[6];
+	const raised = seventh.endsWith("b") ? seventh.slice(0, -1) : `${seventh}#`;
+
+	// G# minor and D# minor would need a double sharp, which we cannot spell.
+	return NOTE_TO_PC[raised] === mod(key.tonicPc - 1, 12) ? raised : null;
+}
+
+export function getScalePcs(keyName: string) {
 	const key = getKeyDefinition(keyName) ?? KEY_DEFINITIONS[0];
-	return MAJOR_SCALE_INTERVALS.map((interval) =>
+	return SCALE_INTERVALS[key.mode].map((interval) =>
 		mod(key.tonicPc + interval, 12),
 	);
 }
@@ -590,11 +1065,17 @@ export function chordNotes(
 }
 
 export function degreeForPcInKey(pc: number, keyName: string) {
-	const scale = getMajorScalePcs(keyName);
+	const scale = getScalePcs(keyName);
 	const exactIndex = scale.indexOf(mod(pc, 12));
 
 	if (exactIndex >= 0) {
 		return `${exactIndex + 1}`;
+	}
+
+	const key = getKeyDefinition(keyName);
+
+	if (key && isRaisedSeventh(key, pc)) {
+		return "#7";
 	}
 
 	const flatIndex = scale.findIndex(
@@ -802,12 +1283,15 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 		return {
 			ok: false,
 			message: "The selected key is not supported.",
-			suggestion: "Choose one of the 12 major keys in the key selector.",
+			suggestion: "Choose one of the major or minor keys in the key selector.",
 		};
 	}
 
 	const templates = PROGRESSION_TEMPLATES.filter(
-		(template) => template.mode === "strict" || prefs.mode === "blues",
+		(template) =>
+			template.keyMode === key.mode &&
+			(template.mode === "strict" || prefs.mode === "blues") &&
+			templateSuitsGenerator(template, key.mode, prefs.mode),
 	);
 	const viableTemplates = templates.filter((template) =>
 		templateCanGenerate(template, key, prefs),
@@ -828,16 +1312,17 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 			weight: item.weight,
 		})),
 	);
-	const scalePcs = getMajorScalePcs(key.name);
-	const chordPlans = template.romanDegrees.map((degree) => {
-		const rootPc = scalePcs[degree - 1];
-		const quality = chooseQualityForDegree(
-			degree,
+	const scalePcs = getScalePcs(key.name);
+	const chordPlans = template.steps.map((step) => ({
+		step,
+		rootPc: stepRootPc(step, scalePcs),
+		quality: chooseQualityForDegree(
+			step.degree,
+			key.mode,
 			prefs.mode,
 			prefs.enabledQualities,
-		);
-		return { degree, rootPc, quality };
-	});
+		),
+	}));
 
 	const chordCandidates = chordPlans.map((plan) =>
 		getVoicings(
@@ -862,31 +1347,15 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 	const voicingChain = prefs.switchPractice
 		? chooseSmoothestVoicingChain(chordCandidates)
 		: chordCandidates.map((candidates) => candidates[0]);
-	const generatedChords = chordPlans.map((plan, index): GeneratedChord => {
-		const voicing = voicingChain[index];
-
-		return {
-			id: `${index + 1}-${voicing.id}`,
-			degree: plan.degree,
-			roman: romanNumeral(plan.degree, plan.quality),
-			arabicDegree: `${plan.degree}`,
-			symbol: voicing.symbol,
-			root: voicing.root,
-			rootPc: plan.rootPc,
-			quality: plan.quality,
-			qualityLabel: QUALITY_DEFINITIONS[plan.quality].label,
-			shapeFamily: voicing.shapeFamily,
-			formula: QUALITY_DEFINITIONS[plan.quality].formula,
-			notes: chordNotes(
-				plan.rootPc,
-				plan.quality,
-				prefs.accidentalPreference,
-				key.name,
-			),
-			inKeyDegrees: chordInKeyDegrees(plan.rootPc, plan.quality, key.name),
-			voicing,
-		};
-	});
+	const generatedChords = chordPlans.map((plan, index) =>
+		toGeneratedChord(
+			{ ...plan.step, quality: plan.quality },
+			index,
+			voicingChain[index],
+			key.name,
+			prefs.accidentalPreference,
+		),
+	);
 	const notesCovered = uniqueStrings(
 		generatedChords.flatMap((chord) => chord.notes),
 	);
@@ -912,6 +1381,88 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 			degreesCovered,
 		},
 	};
+}
+
+export function buildProgression(
+	template: ProgressionTemplate,
+	keyName: string,
+	preference: AccidentalPreference = "smart",
+): GeneratedChord[] {
+	const key = getKeyDefinition(keyName);
+
+	if (!key) {
+		return [];
+	}
+
+	const scalePcs = getScalePcs(key.name);
+	const candidates = template.steps.map((step) =>
+		getVoicings(
+			stepRootPc(step, scalePcs),
+			step.quality,
+			SHAPE_FAMILIES,
+			preference,
+			key.name,
+			"any",
+		),
+	);
+
+	if (candidates.some((options) => options.length === 0)) {
+		return [];
+	}
+
+	const chain = chooseSmoothestVoicingChain(candidates);
+
+	return template.steps.map((step, index) =>
+		toGeneratedChord(step, index, chain[index], key.name, preference),
+	);
+}
+
+function stepRootPc(step: ProgressionStep, scalePcs: number[]) {
+	const pc = scalePcs[step.degree - 1];
+	return step.flat ? mod(pc - 1, 12) : pc;
+}
+
+function toGeneratedChord(
+	step: ProgressionStep,
+	index: number,
+	voicing: ChordVoicing,
+	keyName: string,
+	preference: AccidentalPreference,
+): GeneratedChord {
+	return {
+		id: `${index + 1}-${voicing.id}`,
+		degree: step.degree,
+		roman: romanNumeral(step.degree, step.quality, step.flat),
+		arabicDegree: `${step.flat ? "b" : ""}${step.degree}`,
+		symbol: voicing.symbol,
+		root: voicing.root,
+		rootPc: voicing.rootPc,
+		quality: step.quality,
+		qualityLabel: QUALITY_DEFINITIONS[step.quality].label,
+		shapeFamily: voicing.shapeFamily,
+		formula: QUALITY_DEFINITIONS[step.quality].formula,
+		notes: chordNotes(voicing.rootPc, step.quality, preference, keyName),
+		inKeyDegrees: chordInKeyDegrees(voicing.rootPc, step.quality, keyName),
+		voicing,
+	};
+}
+
+// The random practice generator only handles four diatonic chords whose fixed
+// quality is one it would pick anyway, so borrowed chords and two- or
+// three-chord vamps stay out of its pool and keep the printed name honest.
+function templateSuitsGenerator(
+	template: ProgressionTemplate,
+	keyMode: KeyMode,
+	mode: GenerationMode,
+) {
+	const source = qualityCandidateMap(keyMode, mode);
+
+	return (
+		template.steps.length === 4 &&
+		template.steps.every(
+			(step) => !step.flat && source[step.degree].includes(step.quality),
+		)
+	);
 }
 
 function fingerForString(
@@ -992,12 +1543,13 @@ function templateCanGenerate(
 	key: KeyDefinition,
 	prefs: GeneratorPrefs,
 ) {
-	const scalePcs = getMajorScalePcs(key.name);
+	const scalePcs = getScalePcs(key.name);
 
-	return template.romanDegrees.every((degree) => {
-		const rootPc = scalePcs[degree - 1];
+	return template.steps.every((step) => {
+		const rootPc = stepRootPc(step, scalePcs);
 		return candidateQualitiesForDegree(
-			degree,
+			step.degree,
+			key.mode,
 			prefs.mode,
 			prefs.enabledQualities,
 		).some(
@@ -1016,22 +1568,24 @@ function templateCanGenerate(
 
 function chooseQualityForDegree(
 	degree: number,
+	keyMode: KeyMode,
 	mode: GenerationMode,
 	enabledQualities: QualityId[],
 ) {
 	const candidates = candidateQualitiesForDegree(
 		degree,
+		keyMode,
 		mode,
 		enabledQualities,
 	);
 
 	if (candidates.length === 0) {
-		return STRICT_QUALITY_CANDIDATES[degree][0];
+		return qualityCandidateMap(keyMode, mode)[degree][0];
 	}
 
 	const weighted = candidates.map((candidate) => ({
 		item: candidate,
-		weight: preferredQualityWeight(degree, candidate, mode),
+		weight: preferredQualityWeight(degree, keyMode, candidate, mode),
 	}));
 
 	return weightedPick(weighted);
@@ -1039,22 +1593,39 @@ function chooseQualityForDegree(
 
 function candidateQualitiesForDegree(
 	degree: number,
+	keyMode: KeyMode,
 	mode: GenerationMode,
 	enabledQualities: QualityId[],
 ) {
-	const source =
-		mode === "blues" ? BLUES_QUALITY_CANDIDATES : STRICT_QUALITY_CANDIDATES;
+	return qualityCandidateMap(keyMode, mode)[degree].filter((quality) =>
+		enabledQualities.includes(quality),
+	);
+}
 
-	return source[degree].filter((quality) => enabledQualities.includes(quality));
+// Minor keys read off one map. Blues colour already lives in it, on degrees 5
+// and 7, so there is no separate minor blues map to keep in step.
+function qualityCandidateMap(keyMode: KeyMode, mode: GenerationMode) {
+	if (keyMode === "minor") {
+		return MINOR_QUALITY_CANDIDATES;
+	}
+
+	return mode === "blues"
+		? BLUES_QUALITY_CANDIDATES
+		: STRICT_QUALITY_CANDIDATES;
 }
 
 function preferredQualityWeight(
 	degree: number,
+	keyMode: KeyMode,
 	quality: QualityId,
 	mode: GenerationMode,
 ) {
 	if (mode === "blues" && [1, 4, 5].includes(degree) && quality === "7") {
 		return 5;
+	}
+
+	if (keyMode === "minor" && degree === 5 && ["major", "7"].includes(quality)) {
+		return 3;
 	}
 
 	if (degree === 5 && quality === "7") {
@@ -1137,8 +1708,9 @@ function sharedPitchClasses(a: ChordVoicing, b: ChordVoicing) {
 	return count;
 }
 
-function romanNumeral(degree: number, quality: QualityId) {
-	const base = ["I", "II", "III", "IV", "V", "VI", "VII"][degree - 1];
+function romanNumeral(degree: number, quality: QualityId, flat = false) {
+	const prefix = flat ? "b" : "";
+	const base = prefix + ["I", "II", "III", "IV", "V", "VI", "VII"][degree - 1];
 
 	if (quality === "minor") {
 		return base.toLowerCase();

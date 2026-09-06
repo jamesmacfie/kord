@@ -539,6 +539,11 @@ svg {
   gap: 10px;
 }
 
+/* Rides on .practice-chords for the column cascade; only the offset differs. */
+.progression-chords {
+  margin-top: 16px;
+}
+
 .practice-card {
   min-width: 0;
   padding: 10px;
@@ -1774,9 +1779,9 @@ svg {
 	}
 
 	.app-tabs {
-		position: relative;
-		display: block;
-		height: 7rem;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-2xs);
 		padding: 0;
 		border: 0;
 		background: var(--color-transparent);
@@ -1784,44 +1789,20 @@ svg {
 	}
 
 	.tab-button {
-		position: absolute;
 		width: auto;
-		height: calc(50% - var(--space-2xs));
 		min-height: 3.25rem;
 		flex-direction: row;
 		gap: var(--space-xs);
 		padding-inline: var(--space-sm);
 	}
 
-	.tab-button:nth-child(1),
-	.tab-button:nth-child(3) {
-		left: 0;
-	}
-
-	.tab-button:nth-child(2),
-	.tab-button:nth-child(4) {
-		right: 0;
-	}
-
-	.tab-button:nth-child(1),
-	.tab-button:nth-child(2) {
-		top: 0;
-	}
-
-	.tab-button:nth-child(3),
-	.tab-button:nth-child(4) {
-		bottom: 0;
-	}
-
-	.tab-button:nth-child(1),
-	.tab-button:nth-child(2),
-	.tab-button:nth-child(3),
-	.tab-button:nth-child(4) {
-		width: calc(50% - var(--space-2xs));
+	.tab-button:last-child:nth-child(odd) {
+		grid-column: span 2;
 	}
 
 	.tab-button span {
 		position: static;
+		display: block;
 		width: auto;
 		height: auto;
 		overflow: hidden;
