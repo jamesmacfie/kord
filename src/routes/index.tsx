@@ -34,6 +34,8 @@ import {
 	type AccidentalPreference,
 	buildProgression,
 	buildVoicing,
+	CAGED_FAMILIES,
+	type CagedFamily,
 	chordInKeyDegrees,
 	chordNotes,
 	chordSymbol,
@@ -53,6 +55,7 @@ import {
 	type QualityId,
 	ROOT_OPTIONS,
 	SHAPE_FAMILIES,
+	SHAPE_LABELS,
 	type ShapeFamily,
 } from "#/lib/music";
 import {
@@ -109,7 +112,7 @@ const DEFAULT_PREFS: UserPrefs = {
 	keyName: "random",
 	mode: "strict",
 	enabledQualities: ["major", "minor", "7", "maj7", "min7"],
-	allowedShapes: ["C", "A", "G", "E", "D"],
+	allowedShapes: SHAPE_FAMILIES,
 	neckZone: "open",
 	switchPractice: true,
 };
@@ -135,7 +138,7 @@ function Home() {
 		}
 
 		try {
-			setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(rawPrefs) });
+			setPrefs({ ...DEFAULT_PREFS, ...migratePrefs(JSON.parse(rawPrefs)) });
 		} catch {
 			setStorageMessage(
 				"Preferences could not be read, so defaults are active.",
@@ -384,7 +387,7 @@ function ExplorePage({
 							))}
 						</select>
 					</Field>
-					<Field label="CAGED family">
+					<Field label="Shape">
 						<select
 							className="control"
 							value={shapeChoice}
@@ -395,7 +398,7 @@ function ExplorePage({
 							<option value="any">Any shape</option>
 							{SHAPE_FAMILIES.map((shape) => (
 								<option key={shape} value={shape}>
-									{shape} shape
+									{SHAPE_LABELS[shape]}
 								</option>
 							))}
 						</select>
@@ -481,7 +484,7 @@ function ExplorePage({
 			<div className="panel chord-study-panel">
 				<div className="chord-hero">
 					<div>
-						<p className="eyebrow">{voicing.shapeFamily}-shape family</p>
+						<p className="eyebrow">{SHAPE_LABELS[voicing.shapeFamily]}</p>
 						<h2>{symbol}</h2>
 						<p>
 							{QUALITY_DEFINITIONS[quality].label} chord in{" "}
@@ -504,7 +507,7 @@ function ExplorePage({
 						<InfoBlock
 							label="Selected family"
 							values={[
-								`${voicing.shapeFamily} shape`,
+								SHAPE_LABELS[voicing.shapeFamily],
 								`Avg fret ${voicing.avgFret.toFixed(1)}`,
 							]}
 						/>
@@ -852,8 +855,11 @@ function PracticePage({
 					}
 				/>
 				<ToggleGroup
-					label="Allowed CAGED families"
-					options={SHAPE_FAMILIES.map((shape) => ({ id: shape, label: shape }))}
+					label="Allowed shapes"
+					options={SHAPE_FAMILIES.map((shape) => ({
+						id: shape,
+						label: SHAPE_LABELS[shape],
+					}))}
 					selected={prefs.allowedShapes}
 					onToggle={(shape) =>
 						updatePrefs({
@@ -1088,7 +1094,7 @@ function ProgressPage({
 					/>
 					<MetricCard
 						label="Shapes touched"
-						value={`${summary.shapes.filter((item) => item.count > 0).length}/5`}
+						value={`${summary.shapes.filter((item) => item.count > 0).length}/${summary.shapes.length}`}
 					/>
 					<MetricCard
 						label="Notes covered"
@@ -1140,7 +1146,7 @@ function ProgressPage({
 			</div>
 
 			<div className="panel coverage-panel">
-				<h3>CAGED families</h3>
+				<h3>Shape families</h3>
 				<CoverageBars items={summary.shapes} />
 			</div>
 
@@ -1397,10 +1403,12 @@ function PracticeChordCard({
 			<div className="practice-card__header">
 				<span className="step-index">{index + 1}</span>
 				<div>
-					<p>{primaryDegree}</p>
+					<p>
+						{primaryDegree}
+						<span className="shape-tag">{SHAPE_LABELS[chord.shapeFamily]}</span>
+					</p>
 					<h3>{chord.symbol}</h3>
 				</div>
-				<span className="shape-pill">{chord.shapeFamily}</span>
 			</div>
 			{showDiagram ? (
 				<FretDiagram compact leftHanded={leftHanded} voicing={chord.voicing} />
@@ -1437,6 +1445,19 @@ function PracticeMemory({ sessions }: { sessions: PracticeSession[] }) {
 			)}
 		</div>
 	);
+}
+
+// Shapes beyond CAGED did not exist when older preferences were written, so a
+// stored CAGED-only list is a leftover default rather than a choice. Open it up,
+// or the search would keep handing back the same five shapes it always did.
+function migratePrefs(stored: Partial<UserPrefs>) {
+	const shapes = stored.allowedShapes;
+
+	if (shapes?.every((shape) => CAGED_FAMILIES.includes(shape as CagedFamily))) {
+		return { ...stored, allowedShapes: SHAPE_FAMILIES };
+	}
+
+	return stored;
 }
 
 function KeyOptions() {
@@ -1595,7 +1616,7 @@ function buildCoverageSummary(sessions: PracticeSession[]) {
 		})),
 	);
 	const shapes = seedCoverage(
-		SHAPE_FAMILIES.map((shape) => ({ id: shape, label: `${shape} shape` })),
+		SHAPE_FAMILIES.map((shape) => ({ id: shape, label: SHAPE_LABELS[shape] })),
 	);
 	const notes = seedCoverage(
 		ROOT_OPTIONS.map((root) => ({

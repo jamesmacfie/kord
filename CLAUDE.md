@@ -20,9 +20,11 @@ typecheck, so `tsc --noEmit` is a separate step.
 
 ## Where things live
 
-- `src/lib/music.ts` is the music-theory core: keys, qualities, CAGED voicing
-  templates, progression templates, voicing scoring, practice-set generation.
-  Everything else consumes it. Change it and you change the whole app.
+- `src/lib/music.ts` is the music-theory core: keys in both modes, qualities,
+  the fretboard voicing search, progression templates, voicing scoring,
+  practice-set generation. Everything else consumes it. Change it and you
+  change the whole app. Voicings are searched, not looked up. `SHAPE_TEMPLATES`
+  survives only to label a search result with the CAGED family it matches.
 - `src/routes/index.tsx` is the entire app shell, about 1,500 lines covering
   tabs, practice flow, settings, and progress. Split it only when a section
   earns its own file.

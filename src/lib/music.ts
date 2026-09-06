@@ -2,7 +2,14 @@ export type AccidentalPreference = "smart" | "sharps" | "flats";
 export type GenerationMode = "strict" | "blues";
 export type KeyMode = "major" | "minor";
 export type NeckZone = "any" | "open" | "mid" | "upper";
-export type ShapeFamily = "C" | "A" | "G" | "E" | "D";
+export type CagedFamily = "C" | "A" | "G" | "E" | "D";
+export type ShapeFamily =
+	| CagedFamily
+	| "shell"
+	| "drop2"
+	| "triad"
+	| "open"
+	| "other";
 export type QualityId =
 	| "major"
 	| "minor"
@@ -176,6 +183,13 @@ const FLAT_NAMES = [
 ];
 const FLAT_LEANING_PCS = new Set([1, 3, 8, 10]);
 const STRING_TUNING = [4, 9, 2, 7, 11, 4];
+const STRING_MIDI = [40, 45, 50, 55, 59, 64];
+const MAX_FRET = 14;
+const HAND_SPAN = 4;
+const MAX_FINGERS = 4;
+const MIN_SOUNDED_STRINGS = 3;
+const VOICINGS_PER_CHORD = 8;
+const VOICINGS_PER_FAMILY = 2;
 
 const NOTE_TO_PC: Record<string, number> = {
 	C: 0,
@@ -201,7 +215,32 @@ const NOTE_TO_PC: Record<string, number> = {
 	Cb: 11,
 };
 
-export const SHAPE_FAMILIES: ShapeFamily[] = ["C", "A", "G", "E", "D"];
+export const CAGED_FAMILIES: CagedFamily[] = ["C", "A", "G", "E", "D"];
+export const SHAPE_FAMILIES: ShapeFamily[] = [
+	"C",
+	"A",
+	"G",
+	"E",
+	"D",
+	"shell",
+	"drop2",
+	"triad",
+	"open",
+	"other",
+];
+
+export const SHAPE_LABELS: Record<ShapeFamily, string> = {
+	C: "C shape",
+	A: "A shape",
+	G: "G shape",
+	E: "E shape",
+	D: "D shape",
+	shell: "Shell",
+	drop2: "Drop 2",
+	triad: "Triad",
+	open: "Open",
+	other: "Other",
+};
 
 export const ROOT_OPTIONS: NoteOption[] = [
 	{ pc: 0, label: "C", value: "0" },
@@ -839,7 +878,7 @@ const MINOR_QUALITY_CANDIDATES: Record<number, QualityId[]> = {
 	7: ["major", "7"],
 };
 
-const SHAPE_TEMPLATES: Record<ShapeFamily, ShapeTemplate> = {
+const SHAPE_TEMPLATES: Record<CagedFamily, ShapeTemplate> = {
 	C: {
 		baseRootPc: 0,
 		qualities: {
@@ -1172,17 +1211,329 @@ export function parseChordSymbol(input: string) {
 	return { rootPc: pc, rootName: root, quality };
 }
 
+// Voicings come from searching the fretboard, not from a fixed shape table.
+// Given the chord's notes we enumerate every playable way to sound them inside
+// a four-fret hand span, work out a fingering, and score it. CAGED shapes still
+// turn up, because they are particular solutions, and so are shells, triads and
+// drop 2s that no template held.
 export function buildVoicing(
 	rootPc: number,
 	quality: QualityId,
-	shapeFamily: ShapeFamily,
+	shapeFamily: CagedFamily,
 	preference: AccidentalPreference = "smart",
 	keyName?: string,
 ): ChordVoicing {
 	const shape = SHAPE_TEMPLATES[shapeFamily];
-	const template = shape.qualities[quality];
 	const shift = mod(rootPc - shape.baseRootPc, 12);
-	const frets = template.frets.map((fret) => (fret < 0 ? -1 : fret + shift));
+	const frets = shape.qualities[quality].frets.map((fret) =>
+		fret < 0 ? -1 : fret + shift,
+	);
+
+	return makeVoicing(rootPc, quality, frets, preference, keyName);
+}
+
+export function getVoicings(
+	rootPc: number,
+	quality: QualityId,
+	shapes: ShapeFamily[] = SHAPE_FAMILIES,
+	preference: AccidentalPreference = "smart",
+	keyName?: string,
+	neckZone: NeckZone = "any",
+) {
+	const allowed = new Set(shapes);
+	const perFamily = new Map<ShapeFamily, number>();
+	const picked: ChordVoicing[] = [];
+
+	for (const frets of searchVoicings(rootPc, quality)) {
+		const voicing = makeVoicing(rootPc, quality, frets, preference, keyName);
+
+		if (
+			!allowed.has(voicing.shapeFamily) ||
+			!voicingFitsZone(voicing, neckZone)
+		) {
+			continue;
+		}
+
+		// Cap each family so the shortlist stays varied instead of filling up
+		// with eight near-identical grips.
+		const used = perFamily.get(voicing.shapeFamily) ?? 0;
+
+		if (used >= VOICINGS_PER_FAMILY) {
+			continue;
+		}
+
+		perFamily.set(voicing.shapeFamily, used + 1);
+		picked.push(voicing);
+
+		if (picked.length >= VOICINGS_PER_CHORD) {
+			break;
+		}
+	}
+
+	return picked;
+}
+
+const searchCache = new Map<string, number[][]>();
+
+// Returns fret arrays, cheapest first. Cached because templateCanGenerate asks
+// the same questions hundreds of times per Generate.
+function searchVoicings(rootPc: number, quality: QualityId) {
+	const cacheKey = `${rootPc}:${quality}`;
+	const cached = searchCache.get(cacheKey);
+
+	if (cached) {
+		return cached;
+	}
+
+	const chordPcs = QUALITY_DEFINITIONS[quality].intervals.map((interval) =>
+		mod(rootPc + interval, 12),
+	);
+	const required = requiredPitchClasses(rootPc, quality);
+	const seen = new Set<string>();
+	const found: Array<{ frets: number[]; cost: number }> = [];
+
+	for (let base = 1; base + HAND_SPAN - 1 <= MAX_FRET; base++) {
+		const perString = STRING_TUNING.map((openPc, stringIndex) => {
+			const options = [-1];
+
+			if (chordPcs.includes(openPc)) {
+				options.push(0);
+			}
+
+			for (let fret = base; fret < base + HAND_SPAN; fret++) {
+				if (chordPcs.includes(mod(STRING_TUNING[stringIndex] + fret, 12))) {
+					options.push(fret);
+				}
+			}
+
+			return options;
+		});
+
+		walkStrings(perString, (frets) => {
+			const key = frets.join(",");
+
+			if (seen.has(key)) {
+				return;
+			}
+
+			seen.add(key);
+
+			if (!isPlayableShape(frets, required)) {
+				return;
+			}
+
+			found.push({
+				frets: [...frets],
+				cost: shapeCost(rootPc, quality, frets),
+			});
+		});
+	}
+
+	const ordered = found
+		.sort((a, b) => a.cost - b.cost)
+		.map((entry) => entry.frets);
+
+	searchCache.set(cacheKey, ordered);
+
+	return ordered;
+}
+
+function walkStrings(
+	perString: number[][],
+	onCandidate: (frets: number[]) => void,
+) {
+	const frets: number[] = [];
+
+	function walk(stringIndex: number) {
+		if (stringIndex === perString.length) {
+			onCandidate(frets);
+			return;
+		}
+
+		for (const fret of perString[stringIndex]) {
+			frets.push(fret);
+			walk(stringIndex + 1);
+			frets.pop();
+		}
+	}
+
+	walk(0);
+}
+
+// The perfect fifth is the one tone a seventh chord can spare. Dropping it is
+// what makes a shell voicing, and it is why shells exist at all.
+function requiredPitchClasses(rootPc: number, quality: QualityId) {
+	const intervals = QUALITY_DEFINITIONS[quality].intervals;
+	const canDropFifth = intervals.length > 3 && intervals.includes(7);
+
+	return intervals
+		.filter((interval) => !(canDropFifth && interval === 7))
+		.map((interval) => mod(rootPc + interval, 12));
+}
+
+function isPlayableShape(frets: number[], required: number[]) {
+	const sounded = frets.filter((fret) => fret >= 0);
+
+	if (sounded.length < MIN_SOUNDED_STRINGS) {
+		return false;
+	}
+
+	if (innerMuteCount(frets) > 1) {
+		return false;
+	}
+
+	const heard = new Set(
+		frets.map((fret, index) =>
+			fret >= 0 ? mod(STRING_TUNING[index] + fret, 12) : -1,
+		),
+	);
+
+	if (!required.every((pc) => heard.has(pc))) {
+		return false;
+	}
+
+	return assignFingers(frets) !== null;
+}
+
+function innerMuteCount(frets: number[]) {
+	const sounded = frets
+		.map((fret, index) => ({ fret, index }))
+		.filter((entry) => entry.fret >= 0);
+	const first = sounded[0]?.index ?? 0;
+	const last = sounded[sounded.length - 1]?.index ?? 0;
+
+	return frets.filter(
+		(fret, index) => fret < 0 && index > first && index < last,
+	).length;
+}
+
+interface Fingering {
+	fingers: string[];
+	barres: BarreInfo[];
+	fingerCount: number;
+	// Three or more strings on one fret that no single finger can barre. Two
+	// adjacent strings under two fingers is ordinary; three is a claw.
+	crampedGroups: number;
+}
+
+// Fingers go on in fret order. A group of strings sharing a fret becomes a
+// barre when one finger could really cover it: three or more strings, or two at
+// the lowest fret in the shape. Anything between the ends of a barre has to sit
+// at that fret or higher, since the finger presses straight through.
+function assignFingers(frets: number[]): Fingering | null {
+	const fretted = frets
+		.map((fret, stringIndex) => ({ fret, stringIndex }))
+		.filter((entry) => entry.fret > 0);
+	const fingers = frets.map(() => "");
+
+	if (fretted.length === 0) {
+		return { fingers, barres: [], fingerCount: 0, crampedGroups: 0 };
+	}
+
+	const lowestFret = Math.min(...fretted.map((entry) => entry.fret));
+	const distinctFrets = Array.from(
+		new Set(fretted.map((entry) => entry.fret)),
+	).sort((a, b) => a - b);
+	const barres: BarreInfo[] = [];
+	let nextFinger = 1;
+	let crampedGroups = 0;
+
+	for (const fret of distinctFrets) {
+		const atFret = fretted.filter((entry) => entry.fret === fret);
+		const from = Math.min(...atFret.map((entry) => entry.stringIndex));
+		const to = Math.max(...atFret.map((entry) => entry.stringIndex));
+		const blocked = frets.some(
+			(other, index) =>
+				index > from && index < to && other >= 0 && other < fret,
+		);
+		const worthBarring =
+			atFret.length >= 3 || (atFret.length === 2 && fret === lowestFret);
+
+		if (worthBarring && !blocked) {
+			if (nextFinger > MAX_FINGERS) {
+				return null;
+			}
+
+			const finger = `${nextFinger}`;
+			nextFinger += 1;
+
+			for (const entry of atFret) {
+				fingers[entry.stringIndex] = finger;
+			}
+
+			barres.push({ fret, fromString: from, toString: to, finger });
+			continue;
+		}
+
+		if (atFret.length >= 3) {
+			crampedGroups += 1;
+		}
+
+		for (const entry of atFret) {
+			if (nextFinger > MAX_FINGERS) {
+				return null;
+			}
+
+			fingers[entry.stringIndex] = `${nextFinger}`;
+			nextFinger += 1;
+		}
+	}
+
+	return { fingers, barres, fingerCount: nextFinger - 1, crampedGroups };
+}
+
+function shapeCost(rootPc: number, quality: QualityId, frets: number[]) {
+	const fretted = frets.filter((fret) => fret > 0);
+	const sounded = frets.filter((fret) => fret >= 0);
+	const span =
+		fretted.length > 0 ? Math.max(...fretted) - Math.min(...fretted) : 0;
+	const avgFret =
+		fretted.length > 0
+			? fretted.reduce((sum, fret) => sum + fret, 0) / fretted.length
+			: 0;
+	const fingering = assignFingers(frets);
+	const bassPc = bassPitchClass(frets);
+
+	const wideBarres = (fingering?.barres ?? []).filter(
+		(barre) => barre.toString - barre.fromString >= 2,
+	).length;
+
+	return (
+		span * 0.28 +
+		avgFret * 0.11 +
+		innerMuteCount(frets) * 0.5 +
+		(6 - sounded.length) * 0.25 +
+		(bassPc === rootPc ? 0 : 0.45) +
+		wideBarres * 0.25 +
+		(fingering?.crampedGroups ?? 0) * 0.4 +
+		Math.max(0, (fingering?.fingerCount ?? MAX_FINGERS) - 3) * 0.2 +
+		(["7", "maj7", "min7", "half-diminished"].includes(quality) ? 0.6 : 0)
+	);
+}
+
+function bassPitchClass(frets: number[]) {
+	for (let index = 0; index < frets.length; index += 1) {
+		if (frets[index] >= 0) {
+			return mod(STRING_TUNING[index] + frets[index], 12);
+		}
+	}
+
+	return -1;
+}
+
+function makeVoicing(
+	rootPc: number,
+	quality: QualityId,
+	frets: number[],
+	preference: AccidentalPreference,
+	keyName?: string,
+): ChordVoicing {
+	const fingering = assignFingers(frets) ?? {
+		fingers: frets.map(() => ""),
+		barres: [],
+		fingerCount: 0,
+		crampedGroups: 0,
+	};
 	const hasOpenStrings = frets.some((fret) => fret === 0);
 	const fretted = frets.filter((fret) => fret > 0);
 	const minFret = fretted.length > 0 ? Math.min(...fretted) : 1;
@@ -1194,61 +1545,108 @@ export function buildVoicing(
 			: 0;
 	const strings = frets.map((fret, stringIndex): VoicedString => {
 		const notePc = fret >= 0 ? mod(STRING_TUNING[stringIndex] + fret, 12) : -1;
+
 		return {
 			stringIndex,
 			fret,
 			note: fret >= 0 ? noteNameForPc(notePc, preference, keyName) : "",
 			notePc,
 			interval: fret >= 0 ? intervalLabelForPc(rootPc, quality, notePc) : "",
-			finger: fingerForString(template, shift, stringIndex),
+			finger: fingering.fingers[stringIndex],
 		};
 	});
-	const barres = barresForTemplate(template, shift);
 	const symbol = chordSymbol(rootPc, quality, preference, keyName);
-	const intervals = QUALITY_DEFINITIONS[quality].formula;
-	const notes = chordNotes(rootPc, quality, preference, keyName);
-	const fretSpan = Math.max(0, maxFret - minFret);
-	const qualityCost = ["7", "maj7", "min7", "half-diminished"].includes(quality)
-		? 0.6
-		: 0;
-	const muteCost = frets.filter((fret) => fret < 0).length * 0.15;
-	const difficulty = Number(
-		(1 + fretSpan * 0.35 + avgFret * 0.06 + qualityCost + muteCost).toFixed(2),
-	);
 
 	return {
-		id: `${symbol}-${shapeFamily}`,
+		id: `${symbol}-${frets.join(",")}`,
 		rootPc,
 		root: noteNameForPc(rootPc, preference, keyName),
 		quality,
 		qualityLabel: QUALITY_DEFINITIONS[quality].label,
 		symbol,
-		shapeFamily,
+		shapeFamily: shapeFamilyFor(rootPc, quality, frets),
 		baseFret,
 		frets,
-		fingers: strings.map((string) => string.finger),
-		barres,
+		fingers: fingering.fingers,
+		barres: fingering.barres,
 		strings,
-		notes,
-		intervals,
+		notes: chordNotes(rootPc, quality, preference, keyName),
+		intervals: QUALITY_DEFINITIONS[quality].formula,
 		avgFret,
-		fretSpan,
-		difficulty,
+		fretSpan: Math.max(0, maxFret - minFret),
+		difficulty: Number((1 + shapeCost(rootPc, quality, frets)).toFixed(2)),
 	};
 }
 
-export function getVoicings(
+function shapeFamilyFor(
 	rootPc: number,
 	quality: QualityId,
-	shapes: ShapeFamily[] = SHAPE_FAMILIES,
-	preference: AccidentalPreference = "smart",
-	keyName?: string,
-	neckZone: NeckZone = "any",
-) {
-	return shapes
-		.map((shape) => buildVoicing(rootPc, quality, shape, preference, keyName))
-		.filter((voicing) => voicingFitsZone(voicing, neckZone))
-		.sort((a, b) => a.difficulty - b.difficulty || a.avgFret - b.avgFret);
+	frets: number[],
+): ShapeFamily {
+	for (const family of CAGED_FAMILIES) {
+		const shape = SHAPE_TEMPLATES[family];
+		const shift = mod(rootPc - shape.baseRootPc, 12);
+		const expected = shape.qualities[quality].frets.map((fret) =>
+			fret < 0 ? -1 : fret + shift,
+		);
+
+		if (expected.every((fret, index) => fret === frets[index])) {
+			return family;
+		}
+	}
+
+	const intervals = QUALITY_DEFINITIONS[quality].intervals;
+	const sounded = frets.filter((fret) => fret >= 0);
+	const heard = new Set(
+		frets.map((fret, index) =>
+			fret >= 0 ? mod(STRING_TUNING[index] + fret, 12) : -1,
+		),
+	);
+
+	if (
+		intervals.length > 3 &&
+		intervals.includes(7) &&
+		!heard.has(mod(rootPc + 7, 12))
+	) {
+		return "shell";
+	}
+
+	if (sounded.length === 4 && isDropTwo(frets)) {
+		return "drop2";
+	}
+
+	if (sounded.length === 3) {
+		return "triad";
+	}
+
+	if (frets.some((fret) => fret === 0)) {
+		return "open";
+	}
+
+	return "other";
+}
+
+// Raise the bass an octave. If it slots in second from the top and leaves a
+// stack inside one octave, the voicing is a close position with its second
+// voice dropped, which is what drop 2 means.
+function isDropTwo(frets: number[]) {
+	const pitches = frets
+		.map((fret, index) => (fret >= 0 ? STRING_MIDI[index] + fret : null))
+		.filter((pitch): pitch is number => pitch !== null)
+		.sort((a, b) => a - b);
+
+	if (pitches.length !== 4) {
+		return false;
+	}
+
+	if (new Set(pitches.map((pitch) => mod(pitch, 12))).size !== 4) {
+		return false;
+	}
+
+	const [low, ...rest] = pitches;
+	const raised = low + 12;
+
+	return raised > rest[1] && raised < rest[2] && rest[2] - rest[0] < 12;
 }
 
 export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
@@ -1264,7 +1662,7 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 	if (prefs.allowedShapes.length === 0) {
 		return {
 			ok: false,
-			message: "No CAGED shape families are enabled.",
+			message: "No shape families are enabled.",
 			suggestion: "Enable at least one shape family, or choose Any shape.",
 		};
 	}
@@ -1302,7 +1700,7 @@ export function generatePracticeSet(prefs: GeneratorPrefs): GenerationResult {
 			ok: false,
 			message: "No valid four-chord progression matches the current filters.",
 			suggestion:
-				"Broaden the chord-quality filters, allow more CAGED shapes, or set the neck zone to Any.",
+				"Broaden the chord-quality filters, allow more shapes, or set the neck zone to Any.",
 		};
 	}
 
@@ -1464,51 +1862,6 @@ function templateSuitsGenerator(
 			(step) => !step.flat && source[step.degree].includes(step.quality),
 		)
 	);
-}
-
-function fingerForString(
-	template: VoicingTemplate,
-	shift: number,
-	stringIndex: number,
-) {
-	const templateFret = template.frets[stringIndex];
-
-	if (templateFret < 0) {
-		return "";
-	}
-
-	if (templateFret === 0 && shift > 0) {
-		return "1";
-	}
-
-	return template.fingers[stringIndex];
-}
-
-function barresForTemplate(
-	template: VoicingTemplate,
-	shift: number,
-): BarreInfo[] {
-	if (shift <= 0) {
-		return [];
-	}
-
-	const movedOpenStrings = template.frets
-		.map((fret, stringIndex) => ({ fret, stringIndex }))
-		.filter((entry) => entry.fret === 0)
-		.map((entry) => entry.stringIndex);
-
-	if (movedOpenStrings.length < 2) {
-		return [];
-	}
-
-	return [
-		{
-			fret: shift,
-			fromString: Math.min(...movedOpenStrings),
-			toString: Math.max(...movedOpenStrings),
-			finger: "1",
-		},
-	];
 }
 
 function intervalLabelForPc(

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildProgression,
+	CAGED_FAMILIES,
 	chordInKeyDegrees,
 	chordNotes,
 	generatePracticeSet,
@@ -10,6 +11,7 @@ import {
 	PROGRESSION_TEMPLATES,
 	parseChordSymbol,
 	QUALITY_DEFINITIONS,
+	QUALITY_ORDER,
 	type QualityId,
 	SHAPE_FAMILIES,
 } from "./music";
@@ -212,5 +214,87 @@ describe("music theory helpers", () => {
 
 			expect(matching.length).toBeGreaterThan(0);
 		}
+	});
+
+	it("only sounds chord tones, whatever shape the search finds", () => {
+		for (const quality of QUALITY_ORDER) {
+			for (let rootPc = 0; rootPc < 12; rootPc += 1) {
+				for (const voicing of getVoicings(rootPc, quality)) {
+					for (const string of voicing.strings) {
+						if (string.fret < 0) {
+							continue;
+						}
+
+						expect(string.interval).not.toBe("color");
+					}
+				}
+			}
+		}
+	});
+
+	it("only returns shapes a hand can actually make", () => {
+		for (const quality of QUALITY_ORDER) {
+			for (let rootPc = 0; rootPc < 12; rootPc += 1) {
+				for (const voicing of getVoicings(rootPc, quality)) {
+					const sounded = voicing.frets.filter((fret) => fret >= 0);
+					const fingers = new Set(
+						voicing.fingers.filter((finger) => finger !== ""),
+					);
+
+					expect(sounded.length).toBeGreaterThanOrEqual(3);
+					expect(voicing.fretSpan).toBeLessThanOrEqual(3);
+					expect(fingers.size).toBeLessThanOrEqual(4);
+				}
+			}
+		}
+	});
+
+	it("finds shapes that no CAGED template holds", () => {
+		const families = new Set(
+			QUALITY_ORDER.flatMap((quality) =>
+				getVoicings(0, quality).map((voicing) => voicing.shapeFamily),
+			),
+		);
+		const beyondCaged = [...families].filter(
+			(family) => !CAGED_FAMILIES.includes(family as never),
+		);
+
+		expect(beyondCaged.length).toBeGreaterThan(0);
+	});
+
+	it("drops the fifth for a shell and never for a triad", () => {
+		const shells = getVoicings(0, "maj7").filter(
+			(voicing) => voicing.shapeFamily === "shell",
+		);
+
+		expect(shells.length).toBeGreaterThan(0);
+
+		for (const shell of shells) {
+			const pcs = shell.strings
+				.filter((string) => string.fret >= 0)
+				.map((string) => string.notePc);
+
+			expect(pcs).not.toContain(7);
+			expect(pcs).toContain(0);
+			expect(pcs).toContain(11);
+		}
+
+		for (const voicing of getVoicings(0, "major")) {
+			expect(voicing.shapeFamily).not.toBe("shell");
+		}
+	});
+
+	it("still finds the CAGED shapes and labels them", () => {
+		const openC = getVoicings(0, "major", ["C"]).find((voicing) =>
+			voicing.frets.every((fret, index) => fret === [-1, 3, 2, 0, 1, 0][index]),
+		);
+		const barreF = getVoicings(5, "major", ["E"]).find((voicing) =>
+			voicing.frets.every((fret, index) => fret === [1, 3, 3, 2, 1, 1][index]),
+		);
+
+		expect(openC?.shapeFamily).toBe("C");
+		expect(barreF?.shapeFamily).toBe("E");
+		// The index finger barres the first fret, the rest fall where a hand puts them.
+		expect(barreF?.fingers).toEqual(["1", "3", "4", "2", "1", "1"]);
 	});
 });

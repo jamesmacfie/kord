@@ -551,10 +551,20 @@ svg {
 
 .practice-card__header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.shape-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-ink);
+  background: var(--color-brass-soft);
+  font-size: 0.68rem;
+  white-space: nowrap;
 }
 
 .practice-card__header p {
@@ -570,10 +580,9 @@ svg {
   overflow-wrap: anywhere;
 }
 
-.step-index,
-.shape-pill {
+.step-index {
   display: inline-flex;
-  width: 32px;
+  min-width: 32px;
   height: 32px;
   align-items: center;
   justify-content: center;
@@ -584,11 +593,6 @@ svg {
 .step-index {
   color: var(--color-panel);
   background: var(--color-accent-strong);
-}
-
-.shape-pill {
-  color: var(--color-ink);
-  background: var(--color-brass-soft);
 }
 
 .timer-panel,
@@ -1008,10 +1012,6 @@ svg {
 
   .practice-card__header h3 {
     font-size: 1.05rem;
-  }
-
-  .practice-card__header .shape-pill {
-    display: none;
   }
 
   .practice-card .fret-diagram.is-compact .fret-diagram__svg {
@@ -1489,19 +1489,13 @@ svg {
 	font-size: var(--text-lg);
 }
 
-.step-index,
-.shape-pill {
+.step-index {
 	border-radius: var(--radius-input);
 }
 
 .step-index {
 	color: var(--color-accent-ink);
 	background: var(--color-accent);
-}
-
-.shape-pill {
-	color: var(--color-ink);
-	background: var(--color-brass-soft);
 }
 
 .timer-panel,

@@ -1,4 +1,8 @@
-import type { ChordVoicing, VoicedString } from "#/lib/music";
+import {
+	type ChordVoicing,
+	SHAPE_LABELS,
+	type VoicedString,
+} from "#/lib/music";
 
 interface FretDiagramProps {
 	voicing: ChordVoicing;
@@ -42,7 +46,7 @@ export function FretDiagram({
 	return (
 		<figure className={compact ? "fret-diagram is-compact" : "fret-diagram"}>
 			<svg
-				aria-label={`${voicing.symbol} ${voicing.shapeFamily}-shape chord diagram. Frets ${voicing.frets.map((fret) => (fret < 0 ? "x" : fret)).join(", ")} from low E to high E.`}
+				aria-label={`${voicing.symbol} ${SHAPE_LABELS[voicing.shapeFamily]} chord diagram. Frets ${voicing.frets.map((fret) => (fret < 0 ? "x" : fret)).join(", ")} from low E to high E.`}
 				className="fret-diagram__svg"
 				role="img"
 				viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
