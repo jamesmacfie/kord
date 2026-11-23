@@ -66,6 +66,8 @@ import {
 	SHAPE_FAMILIES,
 	SHAPE_LABELS,
 	type ShapeFamily,
+	TRIAD_INVERSIONS,
+	type TriadInversion,
 } from "#/lib/music";
 import {
 	type ConfidenceRating,
@@ -113,6 +115,7 @@ interface RoutinePrefs {
 	mode: KeyMode;
 	view: RoutineView;
 	triadStrings: NeckStrings;
+	triadInversion: TriadInversion;
 	thirdStrings: number;
 	sixthStrings: number;
 	source: IntervalSource;
@@ -149,6 +152,7 @@ const DEFAULT_PREFS: UserPrefs = {
 		mode: "minor",
 		view: "chord-tones",
 		triadStrings: "all",
+		triadInversion: 0,
 		thirdStrings: 4,
 		sixthStrings: 3,
 		source: "chord",
@@ -771,6 +775,7 @@ function RoutinePage({
 			view: view.id,
 			strings: stringsFor(view.id),
 			source: routine.source,
+			inversion: routine.triadInversion,
 			accidentalPreference: prefs.accidentalPreference,
 		}),
 	}));
@@ -857,6 +862,24 @@ function RoutinePage({
 							))}
 						</select>
 					</Field>
+					<Field label="Triad inversion">
+						<select
+							className="control"
+							disabled={routine.triadStrings === "all"}
+							value={routine.triadInversion}
+							onChange={(event) =>
+								setRoutine({
+									triadInversion: Number(event.target.value) as TriadInversion,
+								})
+							}
+						>
+							{TRIAD_INVERSIONS.map((inversion) => (
+								<option key={inversion.id} value={inversion.id}>
+									{inversion.label}
+								</option>
+							))}
+						</select>
+					</Field>
 					<Field label="Thirds on">
 						<select
 							className="control"
@@ -872,6 +895,16 @@ function RoutinePage({
 							))}
 						</select>
 					</Field>
+					<Field label="Thirds from">
+						<Segmented
+							options={[
+								{ id: "chord", label: "Chord tones" },
+								{ id: "scale", label: "Whole scale" },
+							]}
+							selected={routine.source}
+							onSelect={(source) => setRoutine({ source })}
+						/>
+					</Field>
 					<Field label="Sixths on">
 						<select
 							className="control"
@@ -886,16 +919,6 @@ function RoutinePage({
 								</option>
 							))}
 						</select>
-					</Field>
-					<Field label="Thirds and sixths from">
-						<Segmented
-							options={[
-								{ id: "chord", label: "Chord tones" },
-								{ id: "scale", label: "Whole scale" },
-							]}
-							selected={routine.source}
-							onSelect={(source) => setRoutine({ source })}
-						/>
 					</Field>
 				</div>
 
@@ -982,9 +1005,13 @@ function routineDetail(view: RoutineView, routine: RoutinePrefs) {
 			: " Built from the scale.";
 
 	if (view === "triads") {
-		return routine.triadStrings === "all"
-			? ""
-			: ` Shown on ${stringSetLabel(routine.triadStrings, 2)}.`;
+		if (routine.triadStrings === "all") {
+			return "";
+		}
+
+		const strings = stringSetLabel(routine.triadStrings, 2);
+		const inversion = TRIAD_INVERSIONS[routine.triadInversion].label;
+		return ` Shown on ${strings}, ${inversion.toLowerCase()}.`;
 	}
 
 	if (view === "thirds") {
@@ -992,8 +1019,7 @@ function routineDetail(view: RoutineView, routine: RoutinePrefs) {
 	}
 
 	if (view === "sixths") {
-		const strings = stringSetLabel(routine.sixthStrings, 2, true);
-		return ` Shown on ${strings}.${source}`;
+		return ` Shown on ${stringSetLabel(routine.sixthStrings, 2, true)}.`;
 	}
 
 	return "";

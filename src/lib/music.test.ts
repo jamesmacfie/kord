@@ -442,20 +442,66 @@ describe("CAGED neck map", () => {
 		}
 	});
 
-	it("finds all three close triad inversions on a string set", () => {
+	it("climbs every triad in the key along a string set", () => {
 		const map = buildNeckMap({
 			tonicPc: 0,
 			mode: "major",
 			view: "triads",
 			strings: 3,
+			inversion: 0,
 		});
 
-		expect(pairs(map)).toEqual([
-			"5@3:0 R@4:1 3@5:0",
-			"R@3:5 3@4:5 5@5:3",
-			"3@3:9 5@4:8 R@5:8",
-			"5@3:12 R@4:13 3@5:12",
+		// Root position G would need fret -2 on the top string, so the climb
+		// starts on Am and reaches every chord in the key before repeating.
+		expect(map.groups.map((group) => group.label)).toEqual([
+			"Am",
+			"Bdim",
+			"C",
+			"Dm",
+			"Em",
+			"F",
+			"G",
+			"Am",
 		]);
+		expect(pairs(map)[2]).toBe("R@3:5 3@4:5 5@5:3");
+	});
+
+	it("names triads by their root whatever the inversion", () => {
+		for (const inversion of [0, 1, 2] as const) {
+			const map = buildNeckMap({
+				tonicPc: 2,
+				mode: "minor",
+				view: "triads",
+				strings: 0,
+				inversion,
+			});
+			const labels = new Set(map.groups.map((group) => group.label));
+
+			expect(map.groups.length).toBeGreaterThanOrEqual(8);
+			expect(labels).toEqual(
+				new Set(["Dm", "Edim", "F", "Gm", "Am", "Bb", "C"]),
+			);
+		}
+	});
+
+	it("runs sixths through the whole scale whatever the thirds source", () => {
+		const fromChord = buildNeckMap({
+			tonicPc: 2,
+			mode: "minor",
+			view: "sixths",
+			strings: 3,
+			source: "chord",
+		});
+		const fromScale = buildNeckMap({
+			tonicPc: 2,
+			mode: "minor",
+			view: "sixths",
+			strings: 3,
+			source: "scale",
+		});
+
+		expect(pairs(fromChord)).toEqual(pairs(fromScale));
+		expect(fromChord.groups).toHaveLength(10);
 	});
 
 	it("marks the parallel third in the major/minor switch view", () => {

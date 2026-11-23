@@ -1845,7 +1845,7 @@ svg {
 
 @media (min-width: 64rem) {
 	.routine-options {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(5, minmax(0, 1fr));
 	}
 }
 
@@ -1944,6 +1944,14 @@ svg {
 	text-anchor: middle;
 }
 
+.neck-diagram__group-label {
+	fill: var(--color-ink);
+	font-family: var(--font-display);
+	font-size: 13px;
+	font-weight: 700;
+	text-anchor: middle;
+}
+
 .neck-span rect {
 	fill: color-mix(in oklab, var(--shape-color) 22%, var(--color-transparent));
 	stroke: var(--shape-color);
@@ -2032,4 +2040,9 @@ svg {
 
 .neck-dot.is-alternate .neck-dot__label {
 	fill: var(--color-ink);
+}
+
+.control:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
 }

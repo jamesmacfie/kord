@@ -2169,6 +2169,8 @@ export interface NeckGroup {
 	noteIds: string[];
 	/** Outlines are drawn faintly beneath a view, shapes at full strength. */
 	kind: "shape" | "outline";
+	/** Chord name for a diatonic triad, such as "Gm" or "Edim". */
+	label?: string;
 }
 
 export interface NeckSpan {
@@ -2188,9 +2190,20 @@ export interface NeckMapOptions {
 	mode: KeyMode;
 	view: RoutineView;
 	strings?: NeckStrings;
+	/** Which interval only thirds read; sixths always walk the scale. */
 	source?: IntervalSource;
+	/** Bass of each string-set triad: 0 root, 1 third, 2 fifth. */
+	inversion?: TriadInversion;
 	accidentalPreference?: AccidentalPreference;
 }
+
+export type TriadInversion = 0 | 1 | 2;
+
+export const TRIAD_INVERSIONS: Array<{ id: TriadInversion; label: string }> = [
+	{ id: 0, label: "Root position" },
+	{ id: 1, label: "1st inversion" },
+	{ id: 2, label: "2nd inversion" },
+];
 
 export const NECK_FRETS = 15;
 export const STRING_COUNT = 6;
@@ -2224,7 +2237,7 @@ export const ROUTINE_VIEWS: RoutineViewDefinition[] = [
 		id: "triads",
 		label: "Triads",
 		description:
-			"The tonic triad in each CAGED shape, or its close voicings on one string set.",
+			"The tonic triad in each CAGED shape, or every triad in the key climbing one string set.",
 	},
 	{
 		id: "thirds",
@@ -2236,7 +2249,7 @@ export const ROUTINE_VIEWS: RoutineViewDefinition[] = [
 		id: "sixths",
 		label: "Sixths",
 		description:
-			"Pairs a sixth apart across a skipped string, climbing the neck.",
+			"Pairs a sixth apart through the whole scale, across a skipped string, climbing the neck.",
 	},
 ];
 
@@ -2535,18 +2548,17 @@ export function buildNeckMap(options: NeckMapOptions): NeckMap {
 		keyName: key?.name,
 		preference: options.accidentalPreference ?? "smart",
 	};
-	const intervalKind: RegionKind =
-		(view === "thirds" || view === "sixths") && options.source === "scale"
-			? "scale"
-			: "chord";
-	const spans = neckSpans(
-		ctx,
-		view === "thirds" || view === "sixths"
-			? intervalKind
-			: view === "pentatonic" || view === "scale"
-				? "scale"
-				: "chord",
-	);
+	const strings = options.strings ?? "all";
+	// Views built from the whole scale use the scale's territory, and views
+	// built from the tonic chord widen it to take in the chord shapes.
+	const onScale =
+		view === "pentatonic" ||
+		view === "scale" ||
+		view === "sixths" ||
+		(view === "thirds" && options.source === "scale") ||
+		(view === "triads" && strings !== "all");
+	const region: RegionKind = onScale ? "scale" : "chord";
+	const spans = neckSpans(ctx, region);
 
 	switch (view) {
 		case "pentatonic":
@@ -2573,18 +2585,16 @@ export function buildNeckMap(options: NeckMapOptions): NeckMap {
 			return { notes, groups: voicingGroups(ctx, "outline"), spans };
 		}
 		case "triads":
-			return options.strings === undefined || options.strings === "all"
+			return strings === "all"
 				? fullShapeMap(ctx, spans)
-				: stackedMap(ctx, options.strings, "triads", "chord", spans);
+				: stackedMap(ctx, strings, "triads", region, spans, options.inversion);
 		case "thirds":
 		case "sixths":
 			return stackedMap(
 				ctx,
-				options.strings === undefined || options.strings === "all"
-					? NECK_STRING_SETS[view][0]
-					: options.strings,
+				strings === "all" ? NECK_STRING_SETS[view][0] : strings,
 				view,
-				intervalKind,
+				region,
 				spans,
 			);
 	}
@@ -2651,19 +2661,26 @@ function fullShapeMap(ctx: NeckContext, spans: NeckSpan[]): NeckMap {
 	return { notes, groups, spans };
 }
 
-// Triads, thirds, and sixths are all a stack of notes, one per string, where
-// each note is the next step up a ladder of pitches. Triads climb the chord
-// tones. Thirds climb the ladder by one rung, sixths by five rungs of the scale
-// (or one rung down the chord, turned upside down).
+// Triads, thirds, and sixths are all a stack of notes, one per string, each a
+// set number of rungs up a ladder of pitches from the one below. Start a stack
+// on every ladder note of the lowest string and the views cover the whole neck.
+// Sixths and string-set triads climb the scale, so every chord in the key
+// appears. Thirds climb either the scale or the tonic chord's own tones.
+const TRIAD_STEPS: Record<TriadInversion, number[]> = {
+	0: [2, 2],
+	1: [2, 3],
+	2: [3, 2],
+};
+
 function stackedMap(
 	ctx: NeckContext,
 	lowString: number,
 	kind: "triads" | "thirds" | "sixths",
 	region: RegionKind,
 	spans: NeckSpan[],
+	inversion: TriadInversion = 0,
 ): NeckMap {
-	const offsets = STRING_SPAN[kind];
-	const strings = offsets.map((offset) => lowString + offset);
+	const strings = STRING_SPAN[kind].map((offset) => lowString + offset);
 
 	if (strings[strings.length - 1] >= STRING_COUNT) {
 		return { notes: [], groups: [], spans };
@@ -2671,12 +2688,15 @@ function stackedMap(
 
 	const chord = NECK_PITCH_SETS.chord[ctx.mode];
 	const scale = NECK_PITCH_SETS.scale[ctx.mode];
-	const onChord = kind === "triads" || region === "chord";
-	const ladder = onChord ? chord : scale;
-	// On chord tones a third is one rung up and a sixth is two (a third turned
-	// upside down). On the scale they are two rungs and five.
-	const rungs = { triads: [1, 1], thirds: [1, 2], sixths: [2, 5] }[kind];
-	const rung = onChord ? rungs[0] : rungs[1];
+	const ladder = region === "chord" ? chord : scale;
+	// On chord tones a third is one rung up. On the scale it is two, and a
+	// sixth is five.
+	const steps =
+		kind === "triads"
+			? TRIAD_STEPS[inversion]
+			: kind === "sixths"
+				? [5]
+				: [ladder === chord ? 1 : 2];
 
 	const notes: NeckNote[] = [];
 	const groups: NeckGroup[] = [];
@@ -2694,25 +2714,20 @@ function stackedMap(
 		let pitch = STRING_MIDI[strings[0]] + fret;
 		let index = start;
 
-		for (const stringIndex of strings.slice(1)) {
-			pitch += intervalUp(ladder, index, rung);
-			index += rung;
+		strings.slice(1).forEach((stringIndex, position) => {
+			pitch += intervalUp(ladder, index, steps[position]);
+			index += steps[position];
 			placed.push({ stringIndex, fret: pitch - STRING_MIDI[stringIndex] });
-		}
+		});
 
 		if (!placed.every((item) => item.fret >= 0 && item.fret <= NECK_FRETS)) {
 			continue;
 		}
 
+		// On chord tones the fifth up to the root is a fourth, not a third.
 		const rise = pitch - (STRING_MIDI[strings[0]] + fret);
 
-		// On chord tones the fifth up to the root is a fourth, and the root up
-		// to the fifth is a fifth, so those rungs are not thirds or sixths.
 		if (kind === "thirds" && (rise < 3 || rise > 4)) {
-			continue;
-		}
-
-		if (kind === "sixths" && (rise < 8 || rise > 9)) {
 			continue;
 		}
 
@@ -2730,10 +2745,26 @@ function stackedMap(
 			shapes,
 			kind: "shape",
 			noteIds: groupNotes.map((note) => note.id),
+			label:
+				kind === "triads"
+					? diatonicTriadName(ctx, mod(start - inversion * 2, 7))
+					: undefined,
 		});
 	}
 
 	return { notes, groups, spans };
+}
+
+/** Name the triad built on a scale degree (0-based), such as "Gm" or "Edim". */
+function diatonicTriadName(ctx: NeckContext, degree: number) {
+	const scale = NECK_PITCH_SETS.scale[ctx.mode];
+	const root = scale[degree];
+	const third = mod(scale[(degree + 2) % 7] - root, 12);
+	const fifth = mod(scale[(degree + 4) % 7] - root, 12);
+	const suffix = fifth === 6 ? "dim" : third === 3 ? "m" : "";
+	const name = noteNameForPc(ctx.tonicPc + root, ctx.preference, ctx.keyName);
+
+	return `${name}${suffix}`;
 }
 
 /** Semitones from rung `index` of a ladder to `rungs` rungs above it. */

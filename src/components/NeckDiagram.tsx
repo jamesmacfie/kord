@@ -48,7 +48,8 @@ export function NeckDiagram({
 	const lanes = assignLanes(spans);
 	const laneCount = Math.max(1, ...lanes.map((lane) => lane + 1));
 	const boardTop = HEADER_TOP + laneCount * (LANE_HEIGHT + LANE_GAP) + 14;
-	const viewHeight = boardTop + BOARD_HEIGHT + 40;
+	const hasLabels = map.groups.some((group) => group.label);
+	const viewHeight = boardTop + BOARD_HEIGHT + (hasLabels ? 64 : 40);
 
 	const notes = map.notes
 		.map((note) => ({
@@ -205,6 +206,24 @@ export function NeckDiagram({
 								.join(" ")}
 						/>
 					))}
+
+					{groups.map((group) =>
+						group.label ? (
+							<text
+								className="neck-diagram__group-label"
+								key={`label-${group.id}`}
+								x={
+									group.points.reduce(
+										(sum, note) => sum + noteX(note.fret),
+										0,
+									) / group.points.length
+								}
+								y={boardTop + BOARD_HEIGHT + 56}
+							>
+								{group.label}
+							</text>
+						) : null,
+					)}
 
 					{notes.map((note) => (
 						<NeckDot
