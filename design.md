@@ -52,6 +52,9 @@ Atmospheric app, restrained for daily music practice.
 ## Per-page allowances
 - App pages must not use hero enrichment. Function carries the page.
 - Semantic chord colours are allowed for interval roles only.
+- The Routine neck map is the one exception: it colours notes by CAGED shape
+  (C red, A blue, G teal, E green, D yellow), splitting a dot when shapes share
+  it. Interval roles there are carried by the dot labels instead.
 
 ## What pages MUST share
 - The Kord wordmark treatment.

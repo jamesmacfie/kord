@@ -13,6 +13,9 @@ generating playable four-chord loops, and tracking practice coverage over time.
   modes.
 - CAGED voicing selection by allowed shape family, neck zone, and optional
   switch-practice scoring for smoother chord transitions.
+- Practice routine pane: a full-neck map for any key, major or minor, with
+  chord tones, pentatonic, major/minor third switch, full scale, triads, thirds,
+  and sixths views, each coloured by CAGED shape.
 - Timed practice sessions with 5, 10, and 15 minute presets, optional external
   BPM, and confidence tracking.
 - Progress coverage by key, chord quality, CAGED family, pitch-class note, and
@@ -38,6 +41,8 @@ Kord is a single-page TanStack Start app:
 - `src/lib/practice-storage.ts` owns the browser persistence boundary for saved
   sessions and backup import/export.
 - `src/components/FretDiagram.tsx` renders chord diagrams from the voicing model.
+- `src/components/NeckDiagram.tsx` renders the full-neck CAGED map that
+  `buildNeckMap` in `music.ts` produces for the Routine tab.
 - `public/manifest.json` and `public/sw.js` provide the PWA surface.
 
 The app is intentionally client-local for user data. Preferences are stored in

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildNeckMap,
 	buildProgression,
 	CAGED_FAMILIES,
 	chordInKeyDegrees,
@@ -8,6 +9,8 @@ import {
 	generatePracticeSet,
 	getVoicings,
 	KEY_DEFINITIONS,
+	type KeyMode,
+	type NeckMap,
 	PROGRESSION_TEMPLATES,
 	parseChordSymbol,
 	QUALITY_DEFINITIONS,
@@ -296,5 +299,174 @@ describe("music theory helpers", () => {
 		expect(barreF?.shapeFamily).toBe("E");
 		// The index finger barres the first fret, the rest fall where a hand puts them.
 		expect(barreF?.fingers).toEqual(["1", "3", "4", "2", "1", "1"]);
+	});
+});
+
+describe("CAGED neck map", () => {
+	const MODES: KeyMode[] = ["major", "minor"];
+	const TONICS = Array.from({ length: 12 }, (_, pc) => pc);
+
+	function noteAt(map: NeckMap, stringIndex: number, fret: number) {
+		return map.notes.find(
+			(note) => note.stringIndex === stringIndex && note.fret === fret,
+		);
+	}
+
+	function pairs(map: NeckMap) {
+		return map.groups.map((group) =>
+			group.noteIds
+				.map((id) => {
+					const note = map.notes.find((item) => item.id === id);
+					return `${note?.degree}@${id}`;
+				})
+				.join(" "),
+		);
+	}
+
+	it("puts every pentatonic note in exactly two shapes", () => {
+		for (const mode of MODES) {
+			for (const tonicPc of TONICS) {
+				const map = buildNeckMap({ tonicPc, mode, view: "pentatonic" });
+
+				expect(map.notes.length).toBeGreaterThan(0);
+				for (const note of map.notes) {
+					expect(note.shapes).toHaveLength(2);
+				}
+			}
+		}
+	});
+
+	it("puts each note the scale adds to the pentatonic in one shape", () => {
+		for (const mode of MODES) {
+			for (const tonicPc of TONICS) {
+				const pentatonic = new Set(
+					buildNeckMap({ tonicPc, mode, view: "pentatonic" }).notes.map(
+						(note) => note.id,
+					),
+				);
+				const scale = buildNeckMap({ tonicPc, mode, view: "scale" });
+
+				for (const note of scale.notes) {
+					expect(note.shapes).toHaveLength(pentatonic.has(note.id) ? 2 : 1);
+				}
+			}
+		}
+	});
+
+	it("draws all five chord shapes somewhere on the neck in every key", () => {
+		for (const mode of MODES) {
+			for (const tonicPc of TONICS) {
+				const map = buildNeckMap({ tonicPc, mode, view: "triads" });
+				const shapes = new Set(map.groups.map((group) => group.shapes[0]));
+
+				expect(shapes.size).toBe(5);
+				for (const note of map.notes) {
+					expect(["R", "3", "b3", "5"]).toContain(note.degree);
+				}
+			}
+		}
+	});
+
+	it("matches the D minor C shape and splits shared notes", () => {
+		const map = buildNeckMap({ tonicPc: 2, mode: "minor", view: "triads" });
+
+		// Root on string 2 fret 3 and fifth on string 3 fret 2. The open Dm
+		// D shape uses the same two notes.
+		expect(noteAt(map, 4, 3)).toMatchObject({
+			degree: "R",
+			shapes: ["D", "C"],
+		});
+		expect(noteAt(map, 3, 2)).toMatchObject({
+			degree: "5",
+			shapes: ["D", "C"],
+		});
+		// The root on string 5 fret 5 is where the C and A shapes meet.
+		expect(noteAt(map, 1, 5)).toMatchObject({
+			degree: "R",
+			shapes: ["C", "A"],
+		});
+	});
+
+	it("climbs chord-tone thirds on two neighbouring strings", () => {
+		const map = buildNeckMap({
+			tonicPc: 2,
+			mode: "minor",
+			view: "thirds",
+			strings: 4,
+			source: "chord",
+		});
+
+		expect(pairs(map)).toEqual([
+			"R@4:3 b3@5:1",
+			"b3@4:6 5@5:5",
+			"R@4:15 b3@5:13",
+		]);
+	});
+
+	it("keeps thirds and sixths at the right size on every string set", () => {
+		const STRING_MIDI = [40, 45, 50, 55, 59, 64];
+
+		for (const mode of MODES) {
+			for (const source of ["chord", "scale"] as const) {
+				for (const [view, gap, sizes] of [
+					["thirds", 1, [3, 4]],
+					["sixths", 2, [8, 9]],
+				] as const) {
+					for (let low = 0; low + gap < 6; low += 1) {
+						const map = buildNeckMap({
+							tonicPc: 7,
+							mode,
+							view,
+							strings: low,
+							source,
+						});
+
+						expect(map.groups.length).toBeGreaterThan(0);
+						for (const group of map.groups) {
+							const [lowNote, highNote] = group.noteIds.map((id) =>
+								map.notes.find((note) => note.id === id),
+							);
+							const rise =
+								STRING_MIDI[highNote?.stringIndex ?? 0] +
+								(highNote?.fret ?? 0) -
+								STRING_MIDI[lowNote?.stringIndex ?? 0] -
+								(lowNote?.fret ?? 0);
+
+							expect(highNote?.stringIndex).toBe(low + gap);
+							expect(sizes).toContain(rise);
+							expect(group.shapes.length).toBeGreaterThan(0);
+						}
+					}
+				}
+			}
+		}
+	});
+
+	it("finds all three close triad inversions on a string set", () => {
+		const map = buildNeckMap({
+			tonicPc: 0,
+			mode: "major",
+			view: "triads",
+			strings: 3,
+		});
+
+		expect(pairs(map)).toEqual([
+			"5@3:0 R@4:1 3@5:0",
+			"R@3:5 3@4:5 5@5:3",
+			"3@3:9 5@4:8 R@5:8",
+			"5@3:12 R@4:13 3@5:12",
+		]);
+	});
+
+	it("marks the parallel third in the major/minor switch view", () => {
+		const map = buildNeckMap({ tonicPc: 9, mode: "minor", view: "switch" });
+		const thirds = map.notes.filter((note) => note.degree.endsWith("3"));
+
+		const own = thirds.filter((note) => !note.isAlternate);
+
+		expect(own.length).toBeGreaterThan(0);
+		for (const note of thirds) {
+			expect(note.isAlternate).toBe(note.degree === "3");
+		}
 	});
 });
