@@ -2139,7 +2139,6 @@ export type RoutineView =
 	| "triads"
 	| "thirds"
 	| "sixths";
-export type IntervalSource = "chord" | "scale";
 export type NeckStrings = number | "all";
 
 export interface RoutineViewDefinition {
@@ -2190,8 +2189,6 @@ export interface NeckMapOptions {
 	mode: KeyMode;
 	view: RoutineView;
 	strings?: NeckStrings;
-	/** Which interval only thirds read; sixths always walk the scale. */
-	source?: IntervalSource;
 	/** Bass of each string-set triad: 0 root, 1 third, 2 fifth. */
 	inversion?: TriadInversion;
 	accidentalPreference?: AccidentalPreference;
@@ -2243,7 +2240,7 @@ export const ROUTINE_VIEWS: RoutineViewDefinition[] = [
 		id: "thirds",
 		label: "Thirds",
 		description:
-			"Pairs a third apart on two neighbouring strings, climbing the neck.",
+			"Pairs a third apart through the whole scale, on two neighbouring strings, climbing the neck.",
 	},
 	{
 		id: "sixths",
@@ -2554,8 +2551,8 @@ export function buildNeckMap(options: NeckMapOptions): NeckMap {
 	const onScale =
 		view === "pentatonic" ||
 		view === "scale" ||
+		view === "thirds" ||
 		view === "sixths" ||
-		(view === "thirds" && options.source === "scale") ||
 		(view === "triads" && strings !== "all");
 	const region: RegionKind = onScale ? "scale" : "chord";
 	const spans = neckSpans(ctx, region);
@@ -2587,14 +2584,13 @@ export function buildNeckMap(options: NeckMapOptions): NeckMap {
 		case "triads":
 			return strings === "all"
 				? fullShapeMap(ctx, spans)
-				: stackedMap(ctx, strings, "triads", region, spans, options.inversion);
+				: stackedMap(ctx, strings, "triads", spans, options.inversion);
 		case "thirds":
 		case "sixths":
 			return stackedMap(
 				ctx,
 				strings === "all" ? NECK_STRING_SETS[view][0] : strings,
 				view,
-				region,
 				spans,
 			);
 	}
@@ -2662,10 +2658,9 @@ function fullShapeMap(ctx: NeckContext, spans: NeckSpan[]): NeckMap {
 }
 
 // Triads, thirds, and sixths are all a stack of notes, one per string, each a
-// set number of rungs up a ladder of pitches from the one below. Start a stack
-// on every ladder note of the lowest string and the views cover the whole neck.
-// Sixths and string-set triads climb the scale, so every chord in the key
-// appears. Thirds climb either the scale or the tonic chord's own tones.
+// set number of scale steps above the one below. Start a stack on every scale
+// note of the lowest string and the view covers the whole neck, with every
+// chord or interval the key holds.
 const TRIAD_STEPS: Record<TriadInversion, number[]> = {
 	0: [2, 2],
 	1: [2, 3],
@@ -2676,7 +2671,6 @@ function stackedMap(
 	ctx: NeckContext,
 	lowString: number,
 	kind: "triads" | "thirds" | "sixths",
-	region: RegionKind,
 	spans: NeckSpan[],
 	inversion: TriadInversion = 0,
 ): NeckMap {
@@ -2686,17 +2680,10 @@ function stackedMap(
 		return { notes: [], groups: [], spans };
 	}
 
-	const chord = NECK_PITCH_SETS.chord[ctx.mode];
-	const scale = NECK_PITCH_SETS.scale[ctx.mode];
-	const ladder = region === "chord" ? chord : scale;
-	// On chord tones a third is one rung up. On the scale it is two, and a
-	// sixth is five.
+	const ladder = NECK_PITCH_SETS.scale[ctx.mode];
+	// A third is two scale steps up and a sixth is five.
 	const steps =
-		kind === "triads"
-			? TRIAD_STEPS[inversion]
-			: kind === "sixths"
-				? [5]
-				: [ladder === chord ? 1 : 2];
+		kind === "triads" ? TRIAD_STEPS[inversion] : kind === "sixths" ? [5] : [2];
 
 	const notes: NeckNote[] = [];
 	const groups: NeckGroup[] = [];
@@ -2724,15 +2711,8 @@ function stackedMap(
 			continue;
 		}
 
-		// On chord tones the fifth up to the root is a fourth, not a third.
-		const rise = pitch - (STRING_MIDI[strings[0]] + fret);
-
-		if (kind === "thirds" && (rise < 3 || rise > 4)) {
-			continue;
-		}
-
 		const memberships = placed.map((item) =>
-			membershipAt(ctx, item.stringIndex, item.fret, region),
+			membershipAt(ctx, item.stringIndex, item.fret, "scale"),
 		);
 		const shapes = sharedShapes(memberships);
 		const groupNotes = placed.map((item) =>

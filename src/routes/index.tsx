@@ -47,7 +47,6 @@ import {
 	generatePracticeSet,
 	getKeyDefinition,
 	getVoicings,
-	type IntervalSource,
 	KEY_DEFINITIONS,
 	type KeyMode,
 	NECK_STRING_SETS,
@@ -118,7 +117,6 @@ interface RoutinePrefs {
 	triadInversion: TriadInversion;
 	thirdStrings: number;
 	sixthStrings: number;
-	source: IntervalSource;
 	noteLabel: NeckLabel;
 	shapes: CagedFamily[];
 	showAll: boolean;
@@ -155,7 +153,6 @@ const DEFAULT_PREFS: UserPrefs = {
 		triadInversion: 0,
 		thirdStrings: 4,
 		sixthStrings: 3,
-		source: "chord",
 		noteLabel: "degree",
 		shapes: CAGED_FAMILIES,
 		showAll: false,
@@ -774,7 +771,6 @@ function RoutinePage({
 			mode: routine.mode,
 			view: view.id,
 			strings: stringsFor(view.id),
-			source: routine.source,
 			inversion: routine.triadInversion,
 			accidentalPreference: prefs.accidentalPreference,
 		}),
@@ -895,16 +891,6 @@ function RoutinePage({
 							))}
 						</select>
 					</Field>
-					<Field label="Thirds from">
-						<Segmented
-							options={[
-								{ id: "chord", label: "Chord tones" },
-								{ id: "scale", label: "Whole scale" },
-							]}
-							selected={routine.source}
-							onSelect={(source) => setRoutine({ source })}
-						/>
-					</Field>
 					<Field label="Sixths on">
 						<select
 							className="control"
@@ -999,11 +985,6 @@ function RoutinePage({
 }
 
 function routineDetail(view: RoutineView, routine: RoutinePrefs) {
-	const source =
-		routine.source === "chord"
-			? " Built from chord tones."
-			: " Built from the scale.";
-
 	if (view === "triads") {
 		if (routine.triadStrings === "all") {
 			return "";
@@ -1015,7 +996,7 @@ function routineDetail(view: RoutineView, routine: RoutinePrefs) {
 	}
 
 	if (view === "thirds") {
-		return ` Shown on ${stringSetLabel(routine.thirdStrings, 1)}.${source}`;
+		return ` Shown on ${stringSetLabel(routine.thirdStrings, 1)}.`;
 	}
 
 	if (view === "sixths") {

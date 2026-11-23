@@ -387,55 +387,53 @@ describe("CAGED neck map", () => {
 		});
 	});
 
-	it("climbs chord-tone thirds on two neighbouring strings", () => {
+	it("climbs thirds through the whole scale on two neighbouring strings", () => {
 		const map = buildNeckMap({
 			tonicPc: 2,
 			mode: "minor",
 			view: "thirds",
 			strings: 4,
-			source: "chord",
 		});
 
 		expect(pairs(map)).toEqual([
+			"b7@4:1 2@5:0",
 			"R@4:3 b3@5:1",
+			"2@4:5 4@5:3",
 			"b3@4:6 5@5:5",
+			"4@4:8 b6@5:6",
+			"5@4:10 b7@5:8",
+			"b6@4:11 R@5:10",
+			"b7@4:13 2@5:12",
 			"R@4:15 b3@5:13",
 		]);
 	});
 
 	it("keeps thirds and sixths at the right size on every string set", () => {
 		const STRING_MIDI = [40, 45, 50, 55, 59, 64];
+		const cases = [
+			["thirds", 1, [3, 4]],
+			["sixths", 2, [8, 9]],
+		] as const;
 
 		for (const mode of MODES) {
-			for (const source of ["chord", "scale"] as const) {
-				for (const [view, gap, sizes] of [
-					["thirds", 1, [3, 4]],
-					["sixths", 2, [8, 9]],
-				] as const) {
-					for (let low = 0; low + gap < 6; low += 1) {
-						const map = buildNeckMap({
-							tonicPc: 7,
-							mode,
-							view,
-							strings: low,
-							source,
-						});
+			for (const [view, gap, sizes] of cases) {
+				for (let low = 0; low + gap < 6; low += 1) {
+					const map = buildNeckMap({ tonicPc: 7, mode, view, strings: low });
 
-						expect(map.groups.length).toBeGreaterThan(0);
-						for (const group of map.groups) {
-							const [lowNote, highNote] = group.noteIds.map((id) =>
-								map.notes.find((note) => note.id === id),
-							);
-							const rise =
-								STRING_MIDI[highNote?.stringIndex ?? 0] +
-								(highNote?.fret ?? 0) -
-								STRING_MIDI[lowNote?.stringIndex ?? 0] -
-								(lowNote?.fret ?? 0);
+					expect(map.groups.length).toBeGreaterThan(0);
+					for (const group of map.groups) {
+						const [lowNote, highNote] = group.noteIds.map((id) =>
+							map.notes.find((note) => note.id === id),
+						);
+						const rise =
+							STRING_MIDI[highNote?.stringIndex ?? 0] +
+							(highNote?.fret ?? 0) -
+							STRING_MIDI[lowNote?.stringIndex ?? 0] -
+							(lowNote?.fret ?? 0);
 
-							expect(highNote?.stringIndex).toBe(low + gap);
-							expect(sizes).toContain(rise);
-							expect(group.shapes.length).toBeGreaterThan(0);
-						}
+						expect(highNote?.stringIndex).toBe(low + gap);
+						expect(sizes).toContain(rise);
+						expect(group.shapes.length).toBeGreaterThan(0);
 					}
 				}
 			}
@@ -484,24 +482,15 @@ describe("CAGED neck map", () => {
 		}
 	});
 
-	it("runs sixths through the whole scale whatever the thirds source", () => {
-		const fromChord = buildNeckMap({
+	it("runs sixths through every degree of the scale", () => {
+		const map = buildNeckMap({
 			tonicPc: 2,
 			mode: "minor",
 			view: "sixths",
 			strings: 3,
-			source: "chord",
-		});
-		const fromScale = buildNeckMap({
-			tonicPc: 2,
-			mode: "minor",
-			view: "sixths",
-			strings: 3,
-			source: "scale",
 		});
 
-		expect(pairs(fromChord)).toEqual(pairs(fromScale));
-		expect(fromChord.groups).toHaveLength(10);
+		expect(map.groups).toHaveLength(10);
 	});
 
 	it("marks the parallel third in the major/minor switch view", () => {
