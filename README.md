@@ -90,3 +90,9 @@ npm run deploy
 
 Deployment runs a production build and then `wrangler deploy` using
 `wrangler.jsonc`. The service worker is only registered in production builds.
+
+Pushes to `main` deploy automatically through
+`.github/workflows/deploy.yml`, which runs the four checks, builds, and runs
+`wrangler deploy`. It needs three repository secrets: `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, and `KORD_DOMAIN`, the custom domain to serve on. The
+domain stays in a secret so the repository does not name where Kord is hosted.
