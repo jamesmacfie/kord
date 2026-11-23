@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	Archive,
 	BarChart3,
@@ -27,7 +27,7 @@ import {
 } from "react";
 
 import { FretDiagram } from "#/components/FretDiagram";
-import { NeckDiagram, type NeckLabel } from "#/components/NeckDiagram";
+import { NeckDiagram } from "#/components/NeckDiagram";
 import { Button } from "#/components/ui/button.tsx";
 import { Input } from "#/components/ui/input.tsx";
 import { Label } from "#/components/ui/label.tsx";
@@ -48,7 +48,6 @@ import {
 	getKeyDefinition,
 	getVoicings,
 	KEY_DEFINITIONS,
-	type KeyMode,
 	NECK_STRING_SETS,
 	type NeckStrings,
 	type NeckZone,
@@ -80,18 +79,27 @@ import {
 	type StorageMode,
 	savePracticeSession,
 } from "#/lib/practice-storage";
+import {
+	type AppSearch,
+	type AppTab,
+	chordFromSearch,
+	chordToSearch,
+	DEFAULT_PROGRESSION_KEY,
+	DEFAULT_ROUTINE,
+	DEFAULT_SHAPE,
+	type RoutineState,
+	routineFromSearch,
+	routineToSearch,
+	type ShapeChoice,
+	validateAppSearch,
+} from "#/lib/url-state";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({
+	component: Home,
+	validateSearch: validateAppSearch,
+});
 
-type AppTab =
-	| "explore"
-	| "progressions"
-	| "routine"
-	| "practice"
-	| "progress"
-	| "settings";
 type ContextMode = "absolute" | "key";
-type ShapeChoice = ShapeFamily | "any";
 type NotationPreference = "roman-arabic" | "arabic-first";
 
 interface UserPrefs {
@@ -106,20 +114,7 @@ interface UserPrefs {
 	allowedShapes: ShapeFamily[];
 	neckZone: NeckZone;
 	switchPractice: boolean;
-	routine: RoutinePrefs;
-}
-
-interface RoutinePrefs {
-	tonicPc: number;
-	mode: KeyMode;
-	view: RoutineView;
-	triadStrings: NeckStrings;
-	triadInversion: TriadInversion;
-	thirdStrings: number;
-	sixthStrings: number;
-	noteLabel: NeckLabel;
-	shapes: CagedFamily[];
-	showAll: boolean;
+	routine: RoutineState;
 }
 
 interface CoverageItem {
@@ -145,22 +140,19 @@ const DEFAULT_PREFS: UserPrefs = {
 	allowedShapes: SHAPE_FAMILIES,
 	neckZone: "open",
 	switchPractice: true,
-	routine: {
-		tonicPc: 2,
-		mode: "minor",
-		view: "chord-tones",
-		triadStrings: "all",
-		triadInversion: 0,
-		thirdStrings: 4,
-		sixthStrings: 3,
-		noteLabel: "degree",
-		shapes: CAGED_FAMILIES,
-		showAll: false,
-	},
+	routine: DEFAULT_ROUTINE,
 };
 
 function Home() {
-	const [activeTab, setActiveTab] = useState<AppTab>("explore");
+	const [search, updateSearch] = useAppSearch();
+	const activeTab = search.tab ?? "explore";
+	// Tabs push a history entry, so the back button walks between them. Every
+	// other option replaces the entry, or back would step through each click.
+	const setActiveTab = useCallback(
+		(tab: AppTab) =>
+			updateSearch({ tab: tab === "explore" ? undefined : tab }, true),
+		[updateSearch],
+	);
 	const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_PREFS);
 	const [sessions, setSessions] = useState<PracticeSession[]>([]);
 	const [storageMode, setStorageMode] = useState<StorageMode>("memory");
@@ -227,16 +219,19 @@ function Home() {
 		}
 	}, []);
 
-	const handleSaveSession = useCallback(async (session: PracticeSession) => {
-		const mode = await savePracticeSession(session);
-		setStorageMode(mode);
-		setStorageMessage(storageMessageForMode(mode));
-		setSessions((current) => [
-			session,
-			...current.filter((item) => item.id !== session.id),
-		]);
-		setActiveTab("progress");
-	}, []);
+	const handleSaveSession = useCallback(
+		async (session: PracticeSession) => {
+			const mode = await savePracticeSession(session);
+			setStorageMode(mode);
+			setStorageMessage(storageMessageForMode(mode));
+			setSessions((current) => [
+				session,
+				...current.filter((item) => item.id !== session.id),
+			]);
+			setActiveTab("progress");
+		},
+		[setActiveTab],
+	);
 
 	const handleReplaceSessions = useCallback(
 		async (nextSessions: PracticeSession[]) => {
@@ -349,11 +344,19 @@ function ExplorePage({
 	prefs: UserPrefs;
 	updatePrefs: (patch: Partial<UserPrefs>) => void;
 }) {
-	const [rootPc, setRootPc] = useState(0);
-	const [quality, setQuality] = useState<QualityId>("maj7");
-	const [shapeChoice, setShapeChoice] = useState<ShapeChoice>("C");
-	const [contextMode, setContextMode] = useState<ContextMode>("absolute");
-	const [contextKey, setContextKey] = useState("G");
+	const [search, updateSearch] = useAppSearch();
+	const { rootPc, quality } = chordFromSearch(search);
+	const shapeChoice = search.shape ?? DEFAULT_SHAPE;
+	const contextMode: ContextMode = search.in ? "key" : "absolute";
+	const contextKey = search.in ?? "G";
+
+	const setChord = (nextRoot: number, nextQuality: QualityId) =>
+		updateSearch({ chord: chordToSearch(nextRoot, nextQuality) });
+	const setShapeChoice = (shape: ShapeChoice) =>
+		updateSearch({ shape: shape === DEFAULT_SHAPE ? undefined : shape });
+	const setContextMode = (mode: ContextMode) =>
+		updateSearch({ in: mode === "key" ? contextKey : undefined });
+	const setContextKey = (keyName: string) => updateSearch({ in: keyName });
 	const [aliasInput, setAliasInput] = useState("Cmaj7");
 	const [aliasMessage, setAliasMessage] = useState(
 		"Try aliases like Bb7, Em7, CΔ7, C- or Cø7.",
@@ -401,8 +404,7 @@ function ExplorePage({
 			return;
 		}
 
-		setRootPc(parsed.rootPc);
-		setQuality(parsed.quality);
+		setChord(parsed.rootPc, parsed.quality);
 		setAliasMessage(
 			`Normalized to ${chordSymbol(parsed.rootPc, parsed.quality, prefs.accidentalPreference)} (${QUALITY_DEFINITIONS[parsed.quality].label}).`,
 		);
@@ -423,7 +425,9 @@ function ExplorePage({
 						<select
 							className="control"
 							value={rootPc}
-							onChange={(event) => setRootPc(Number(event.target.value))}
+							onChange={(event) =>
+								setChord(Number(event.target.value), quality)
+							}
 						>
 							{ROOT_OPTIONS.map((root) => (
 								<option key={root.value} value={root.pc}>
@@ -436,7 +440,9 @@ function ExplorePage({
 						<select
 							className="control"
 							value={quality}
-							onChange={(event) => setQuality(event.target.value as QualityId)}
+							onChange={(event) =>
+								setChord(rootPc, event.target.value as QualityId)
+							}
 						>
 							{QUALITY_ORDER.map((qualityId) => (
 								<option key={qualityId} value={qualityId}>
@@ -594,8 +600,17 @@ function ProgressionsPage({
 	prefs: UserPrefs;
 	updatePrefs: (patch: Partial<UserPrefs>) => void;
 }) {
-	const [keyName, setKeyName] = useState("C");
-	const [templateId, setTemplateId] = useState(PROGRESSION_TEMPLATES[0].id);
+	const [search, updateSearch] = useAppSearch();
+	const keyName = search.pkey ?? DEFAULT_PROGRESSION_KEY;
+	const templateId = search.prog ?? PROGRESSION_TEMPLATES[0].id;
+	const setKeyName = (name: string) =>
+		updateSearch({
+			pkey: name === DEFAULT_PROGRESSION_KEY ? undefined : name,
+		});
+	const setTemplateId = (id: string) =>
+		updateSearch({
+			prog: id === PROGRESSION_TEMPLATES[0].id ? undefined : id,
+		});
 
 	const key = getKeyDefinition(keyName) ?? KEY_DEFINITIONS[0];
 	const templates = useMemo(
@@ -734,9 +749,15 @@ function RoutinePage({
 	prefs: UserPrefs;
 	updatePrefs: (patch: Partial<UserPrefs>) => void;
 }) {
-	const routine = prefs.routine;
-	const setRoutine = (patch: Partial<RoutinePrefs>) =>
-		updatePrefs({ routine: { ...routine, ...patch } });
+	const [search, updateSearch] = useAppSearch();
+	const routine = routineFromSearch(search, prefs.routine);
+	// The URL holds the routine on screen. Prefs keep the last one, so a bare
+	// visit to the app opens where you left off.
+	const setRoutine = (patch: Partial<RoutineState>) => {
+		const next = { ...routine, ...patch };
+		updatePrefs({ routine: next });
+		updateSearch(routineToSearch(next));
+	};
 
 	const keyName = KEY_DEFINITIONS.find(
 		(key) => key.mode === routine.mode && key.tonicPc === routine.tonicPc,
@@ -984,7 +1005,7 @@ function RoutinePage({
 	);
 }
 
-function routineDetail(view: RoutineView, routine: RoutinePrefs) {
+function routineDetail(view: RoutineView, routine: RoutineState) {
 	if (view === "triads") {
 		if (routine.triadStrings === "all") {
 			return "";
@@ -1044,6 +1065,27 @@ function Segmented<T extends string>({
 				</button>
 			))}
 		</fieldset>
+	);
+}
+
+function useAppSearch() {
+	const search = Route.useSearch();
+	const navigate = useNavigate({ from: Route.fullPath });
+	const updateSearch = useCallback(
+		(patch: AppSearch, push = false) =>
+			navigate({
+				search: (current) => withoutEmpty({ ...current, ...patch }),
+				replace: !push,
+			}),
+		[navigate],
+	);
+
+	return [search, updateSearch] as const;
+}
+
+function withoutEmpty(search: AppSearch): AppSearch {
+	return Object.fromEntries(
+		Object.entries(search).filter(([, value]) => value !== undefined),
 	);
 }
 

@@ -16,6 +16,8 @@ generating playable four-chord loops, and tracking practice coverage over time.
 - Practice routine pane: a full-neck map for any key, major or minor, with
   chord tones, pentatonic, major/minor third switch, full scale, triads, thirds,
   and sixths views, each coloured by CAGED shape.
+- The tab and every Explore, Progressions, and Routine option live in the URL,
+  so a refresh or a shared link opens the same view.
 - Timed practice sessions with 5, 10, and 15 minute presets, optional external
   BPM, and confidence tracking.
 - Progress coverage by key, chord quality, CAGED family, pitch-class note, and
