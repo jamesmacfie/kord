@@ -1138,7 +1138,7 @@ svg {
 	width: 100%;
 	min-width: 0;
 	max-width: 100%;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: var(--space-xs);
 	justify-content: stretch;
 }
@@ -1821,4 +1821,215 @@ svg {
 		animation-iteration-count: 1 !important;
 		transition-duration: 150ms !important;
 	}
+}
+
+/* Routine: the CAGED neck map. Shape colours are the one place colour names a
+ * position on the neck rather than an interval role. */
+:root {
+	--caged-c: oklch(65% 0.2 27);
+	--caged-a: oklch(66% 0.16 258);
+	--caged-g: oklch(74% 0.12 192);
+	--caged-e: oklch(74% 0.18 145);
+	--caged-d: oklch(87% 0.16 96);
+}
+
+.routine-shell {
+	display: grid;
+	min-width: 0;
+	gap: var(--space-md);
+}
+
+.routine-options {
+	margin-top: var(--space-md);
+}
+
+@media (min-width: 64rem) {
+	.routine-options {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+
+.routine-panel .helper-text {
+	margin-block: 0 var(--space-sm);
+}
+
+.shape-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-xs);
+}
+
+.shape-chip i {
+	width: 0.8rem;
+	height: 0.8rem;
+	border-radius: var(--radius-pill);
+	background: var(--shape-color);
+	opacity: 0.35;
+}
+
+.shape-chip.is-c {
+	--shape-color: var(--caged-c);
+}
+.shape-chip.is-a {
+	--shape-color: var(--caged-a);
+}
+.shape-chip.is-g {
+	--shape-color: var(--caged-g);
+}
+.shape-chip.is-e {
+	--shape-color: var(--caged-e);
+}
+.shape-chip.is-d {
+	--shape-color: var(--caged-d);
+}
+
+.toggle-group .shape-chip.is-active {
+	color: var(--color-ink);
+	border-color: var(--shape-color);
+	background: color-mix(in oklab, var(--shape-color) 16%, var(--color-panel-strong));
+}
+
+.shape-chip.is-active i {
+	opacity: 1;
+}
+
+.neck-diagram {
+	margin: 0;
+	min-width: 0;
+}
+
+.neck-diagram__scroll {
+	overflow-x: auto;
+	border: 1px solid var(--color-line);
+	border-radius: var(--radius-card);
+	background: var(--color-paper-2);
+}
+
+.neck-diagram__svg {
+	display: block;
+	width: 100%;
+	min-width: 56rem;
+	height: auto;
+}
+
+.neck-diagram__board {
+	fill: var(--color-paper-3);
+}
+
+.neck-diagram__inlay {
+	fill: var(--color-line);
+}
+
+.neck-diagram__fret {
+	stroke: var(--color-line-strong);
+	stroke-width: 2;
+}
+
+.neck-diagram__nut {
+	stroke: var(--color-ink-soft);
+	stroke-width: 6;
+}
+
+.neck-diagram__string {
+	stroke: var(--color-ink-muted);
+	opacity: 0.75;
+}
+
+.neck-diagram__string-label,
+.neck-diagram__fret-number {
+	fill: var(--color-ink-muted);
+	font-family: var(--font-body);
+	font-size: 12px;
+	font-weight: 700;
+	text-anchor: middle;
+}
+
+.neck-span rect {
+	fill: color-mix(in oklab, var(--shape-color) 22%, var(--color-transparent));
+	stroke: var(--shape-color);
+	stroke-width: 1.5;
+}
+
+.neck-span text {
+	fill: var(--shape-color);
+	font-family: var(--font-display);
+	font-size: 12px;
+	font-weight: 700;
+	text-anchor: middle;
+}
+
+.neck-span.is-c,
+.neck-line.is-c,
+.neck-dot__fill.is-c {
+	--shape-color: var(--caged-c);
+}
+.neck-span.is-a,
+.neck-line.is-a,
+.neck-dot__fill.is-a {
+	--shape-color: var(--caged-a);
+}
+.neck-span.is-g,
+.neck-line.is-g,
+.neck-dot__fill.is-g {
+	--shape-color: var(--caged-g);
+}
+.neck-span.is-e,
+.neck-line.is-e,
+.neck-dot__fill.is-e {
+	--shape-color: var(--caged-e);
+}
+.neck-span.is-d,
+.neck-line.is-d,
+.neck-dot__fill.is-d {
+	--shape-color: var(--caged-d);
+}
+
+.neck-line {
+	fill: none;
+	stroke: var(--shape-color);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 4;
+}
+
+.neck-line.is-outline {
+	stroke-width: 3;
+	opacity: 0.35;
+}
+
+.neck-dot__fill {
+	fill: var(--shape-color);
+}
+
+.neck-dot__ring {
+	fill: none;
+	stroke: var(--color-paper);
+	stroke-width: 1.5;
+}
+
+.neck-dot.is-root .neck-dot__ring {
+	stroke: var(--color-ink);
+	stroke-width: 3;
+}
+
+.neck-dot__label {
+	fill: var(--color-paper);
+	font-family: var(--font-body);
+	font-size: 11px;
+	font-weight: 800;
+	text-anchor: middle;
+	pointer-events: none;
+}
+
+.neck-dot.is-alternate .neck-dot__fill {
+	opacity: 0.3;
+}
+
+.neck-dot.is-alternate .neck-dot__ring {
+	stroke: var(--color-ink-soft);
+	stroke-dasharray: 3 3;
+}
+
+.neck-dot.is-alternate .neck-dot__label {
+	fill: var(--color-ink);
 }

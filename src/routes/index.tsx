@@ -6,6 +6,7 @@ import {
 	Check,
 	ChevronRight,
 	Download,
+	Guitar,
 	Import,
 	ListMusic,
 	Play,
@@ -26,12 +27,14 @@ import {
 } from "react";
 
 import { FretDiagram } from "#/components/FretDiagram";
+import { NeckDiagram, type NeckLabel } from "#/components/NeckDiagram";
 import { Button } from "#/components/ui/button.tsx";
 import { Input } from "#/components/ui/input.tsx";
 import { Label } from "#/components/ui/label.tsx";
 import { Switch } from "#/components/ui/switch.tsx";
 import {
 	type AccidentalPreference,
+	buildNeckMap,
 	buildProgression,
 	buildVoicing,
 	CAGED_FAMILIES,
@@ -44,7 +47,11 @@ import {
 	generatePracticeSet,
 	getKeyDefinition,
 	getVoicings,
+	type IntervalSource,
 	KEY_DEFINITIONS,
+	type KeyMode,
+	NECK_STRING_SETS,
+	type NeckStrings,
 	type NeckZone,
 	noteNameForPc,
 	PROGRESSION_TEMPLATES,
@@ -54,6 +61,8 @@ import {
 	QUALITY_ORDER,
 	type QualityId,
 	ROOT_OPTIONS,
+	ROUTINE_VIEWS,
+	type RoutineView,
 	SHAPE_FAMILIES,
 	SHAPE_LABELS,
 	type ShapeFamily,
@@ -73,7 +82,13 @@ import {
 
 export const Route = createFileRoute("/")({ component: Home });
 
-type AppTab = "explore" | "progressions" | "practice" | "progress" | "settings";
+type AppTab =
+	| "explore"
+	| "progressions"
+	| "routine"
+	| "practice"
+	| "progress"
+	| "settings";
 type ContextMode = "absolute" | "key";
 type ShapeChoice = ShapeFamily | "any";
 type NotationPreference = "roman-arabic" | "arabic-first";
@@ -90,6 +105,20 @@ interface UserPrefs {
 	allowedShapes: ShapeFamily[];
 	neckZone: NeckZone;
 	switchPractice: boolean;
+	routine: RoutinePrefs;
+}
+
+interface RoutinePrefs {
+	tonicPc: number;
+	mode: KeyMode;
+	view: RoutineView;
+	triadStrings: NeckStrings;
+	thirdStrings: number;
+	sixthStrings: number;
+	source: IntervalSource;
+	noteLabel: NeckLabel;
+	shapes: CagedFamily[];
+	showAll: boolean;
 }
 
 interface CoverageItem {
@@ -115,6 +144,18 @@ const DEFAULT_PREFS: UserPrefs = {
 	allowedShapes: SHAPE_FAMILIES,
 	neckZone: "open",
 	switchPractice: true,
+	routine: {
+		tonicPc: 2,
+		mode: "minor",
+		view: "chord-tones",
+		triadStrings: "all",
+		thirdStrings: 4,
+		sixthStrings: 3,
+		source: "chord",
+		noteLabel: "degree",
+		shapes: CAGED_FAMILIES,
+		showAll: false,
+	},
 };
 
 function Home() {
@@ -138,7 +179,14 @@ function Home() {
 		}
 
 		try {
-			setPrefs({ ...DEFAULT_PREFS, ...migratePrefs(JSON.parse(rawPrefs)) });
+			const stored = migratePrefs(JSON.parse(rawPrefs));
+			// Routine settings nest, so merge them a level down. A field added
+			// later would otherwise vanish behind an older stored object.
+			setPrefs({
+				...DEFAULT_PREFS,
+				...stored,
+				routine: { ...DEFAULT_PREFS.routine, ...stored.routine },
+			});
 		} catch {
 			setStorageMessage(
 				"Preferences could not be read, so defaults are active.",
@@ -232,6 +280,12 @@ function Home() {
 						onClick={() => setActiveTab("progressions")}
 					/>
 					<TabButton
+						active={activeTab === "routine"}
+						icon={Guitar}
+						label="Routine"
+						onClick={() => setActiveTab("routine")}
+					/>
+					<TabButton
 						active={activeTab === "practice"}
 						icon={Timer}
 						label="Practice"
@@ -257,6 +311,9 @@ function Home() {
 			) : null}
 			{activeTab === "progressions" ? (
 				<ProgressionsPage prefs={prefs} updatePrefs={updatePrefs} />
+			) : null}
+			{activeTab === "routine" ? (
+				<RoutinePage prefs={prefs} updatePrefs={updatePrefs} />
 			) : null}
 			{activeTab === "practice" ? (
 				<PracticePage
@@ -664,6 +721,322 @@ function ProgressionsPage({
 				</div>
 			</div>
 		</section>
+	);
+}
+
+const STRING_NAMES = ["E", "A", "D", "G", "B", "e"];
+
+function RoutinePage({
+	prefs,
+	updatePrefs,
+}: {
+	prefs: UserPrefs;
+	updatePrefs: (patch: Partial<UserPrefs>) => void;
+}) {
+	const routine = prefs.routine;
+	const setRoutine = (patch: Partial<RoutinePrefs>) =>
+		updatePrefs({ routine: { ...routine, ...patch } });
+
+	const keyName = KEY_DEFINITIONS.find(
+		(key) => key.mode === routine.mode && key.tonicPc === routine.tonicPc,
+	)?.name;
+	const tonicName = noteNameForPc(
+		routine.tonicPc,
+		prefs.accidentalPreference,
+		keyName,
+	);
+	const keyTitle = `${tonicName} ${routine.mode}`;
+	const activeView =
+		ROUTINE_VIEWS.find((view) => view.id === routine.view) ?? ROUTINE_VIEWS[0];
+	const views = routine.showAll ? ROUTINE_VIEWS : [activeView];
+
+	function stringsFor(view: RoutineView): NeckStrings | undefined {
+		if (view === "triads") {
+			return routine.triadStrings;
+		}
+
+		if (view === "thirds") {
+			return routine.thirdStrings;
+		}
+
+		return view === "sixths" ? routine.sixthStrings : undefined;
+	}
+
+	// A full neck is a few dozen notes, so rebuilding every render is cheap.
+	const maps = views.map((view) => ({
+		view,
+		map: buildNeckMap({
+			tonicPc: routine.tonicPc,
+			mode: routine.mode,
+			view: view.id,
+			strings: stringsFor(view.id),
+			source: routine.source,
+			accidentalPreference: prefs.accidentalPreference,
+		}),
+	}));
+
+	return (
+		<section className="routine-shell">
+			<div className="panel">
+				<div className="section-heading">
+					<div>
+						<p className="eyebrow">Practice routine</p>
+						<h2>{keyTitle} across the neck</h2>
+					</div>
+				</div>
+
+				<div className="field-grid">
+					<Field label="Key">
+						<select
+							className="control"
+							value={routine.tonicPc}
+							onChange={(event) =>
+								setRoutine({ tonicPc: Number(event.target.value) })
+							}
+						>
+							{ROOT_OPTIONS.map((root) => (
+								<option key={root.value} value={root.pc}>
+									{root.label}
+								</option>
+							))}
+						</select>
+					</Field>
+					<Field label="Mode">
+						<Segmented
+							options={[
+								{ id: "major", label: "Major" },
+								{ id: "minor", label: "Minor" },
+							]}
+							selected={routine.mode}
+							onSelect={(mode) => setRoutine({ mode })}
+						/>
+					</Field>
+					<Field label="Dot labels">
+						<Segmented
+							options={[
+								{ id: "degree", label: "Intervals" },
+								{ id: "note", label: "Notes" },
+							]}
+							selected={routine.noteLabel}
+							onSelect={(noteLabel) => setRoutine({ noteLabel })}
+						/>
+					</Field>
+				</div>
+
+				<div className="toggle-group">
+					<span>Fretboard view</span>
+					<Segmented
+						options={ROUTINE_VIEWS.map((view) => ({
+							id: view.id,
+							label: view.label,
+						}))}
+						selected={routine.showAll ? "" : routine.view}
+						onSelect={(view) => setRoutine({ view, showAll: false })}
+					/>
+				</div>
+
+				<div className="field-grid routine-options">
+					<Field label="Triad strings">
+						<select
+							className="control"
+							value={String(routine.triadStrings)}
+							onChange={(event) =>
+								setRoutine({
+									triadStrings:
+										event.target.value === "all"
+											? "all"
+											: Number(event.target.value),
+								})
+							}
+						>
+							<option value="all">Full CAGED shapes</option>
+							{NECK_STRING_SETS.triads.map((low) => (
+								<option key={low} value={low}>
+									{stringSetLabel(low, 2)}
+								</option>
+							))}
+						</select>
+					</Field>
+					<Field label="Thirds on">
+						<select
+							className="control"
+							value={routine.thirdStrings}
+							onChange={(event) =>
+								setRoutine({ thirdStrings: Number(event.target.value) })
+							}
+						>
+							{NECK_STRING_SETS.thirds.map((low) => (
+								<option key={low} value={low}>
+									{stringSetLabel(low, 1)}
+								</option>
+							))}
+						</select>
+					</Field>
+					<Field label="Sixths on">
+						<select
+							className="control"
+							value={routine.sixthStrings}
+							onChange={(event) =>
+								setRoutine({ sixthStrings: Number(event.target.value) })
+							}
+						>
+							{NECK_STRING_SETS.sixths.map((low) => (
+								<option key={low} value={low}>
+									{stringSetLabel(low, 2, true)}
+								</option>
+							))}
+						</select>
+					</Field>
+					<Field label="Thirds and sixths from">
+						<Segmented
+							options={[
+								{ id: "chord", label: "Chord tones" },
+								{ id: "scale", label: "Whole scale" },
+							]}
+							selected={routine.source}
+							onSelect={(source) => setRoutine({ source })}
+						/>
+					</Field>
+				</div>
+
+				<div className="toggle-group">
+					<span>CAGED shapes</span>
+					<div>
+						{CAGED_FAMILIES.map((shape) => {
+							const active = routine.shapes.includes(shape);
+
+							return (
+								<button
+									aria-pressed={active}
+									className={[
+										"shape-chip",
+										`is-${shape.toLowerCase()}`,
+										active ? "is-active" : "",
+									].join(" ")}
+									key={shape}
+									type="button"
+									onClick={() =>
+										setRoutine({
+											shapes: CAGED_FAMILIES.filter((item) =>
+												item === shape
+													? !active
+													: routine.shapes.includes(item),
+											),
+										})
+									}
+								>
+									<i aria-hidden="true" />
+									{shape}
+									{routine.mode === "minor" ? "m" : ""} shape
+								</button>
+							);
+						})}
+					</div>
+				</div>
+
+				<div className="switch-row">
+					<div>
+						<Label htmlFor="routine-show-all">Show every view</Label>
+						<p className="helper-text">
+							Stack all seven diagrams as one routine sheet.
+						</p>
+					</div>
+					<Switch
+						checked={routine.showAll}
+						id="routine-show-all"
+						onCheckedChange={(checked) => setRoutine({ showAll: checked })}
+					/>
+				</div>
+			</div>
+
+			{maps.map(({ view, map }) => (
+				<div className="panel routine-panel" key={view.id}>
+					<div className="section-heading">
+						<div>
+							<p className="eyebrow">{keyTitle}</p>
+							<h2>{view.label}</h2>
+						</div>
+					</div>
+					<p className="helper-text">
+						{view.description}
+						{routineDetail(view.id, routine)}
+					</p>
+					<NeckDiagram
+						enabledShapes={routine.shapes}
+						label={`${keyTitle} ${view.label} across the neck, frets 0 to 15, coloured by CAGED shape.`}
+						leftHanded={prefs.leftHanded}
+						map={map}
+						mode={routine.mode}
+						noteLabel={routine.noteLabel}
+					/>
+				</div>
+			))}
+		</section>
+	);
+}
+
+function routineDetail(view: RoutineView, routine: RoutinePrefs) {
+	const source =
+		routine.source === "chord"
+			? " Built from chord tones."
+			: " Built from the scale.";
+
+	if (view === "triads") {
+		return routine.triadStrings === "all"
+			? ""
+			: ` Shown on ${stringSetLabel(routine.triadStrings, 2)}.`;
+	}
+
+	if (view === "thirds") {
+		return ` Shown on ${stringSetLabel(routine.thirdStrings, 1)}.${source}`;
+	}
+
+	if (view === "sixths") {
+		const strings = stringSetLabel(routine.sixthStrings, 2, true);
+		return ` Shown on ${strings}.${source}`;
+	}
+
+	return "";
+}
+
+/** Strings are numbered from the high e, as guitarists count them. */
+function stringSetLabel(low: number, gap: number, skip = false) {
+	const indices = skip
+		? [low + gap, low]
+		: Array.from({ length: gap + 1 }, (_, offset) => low + gap - offset);
+	const numbers = `${6 - (low + gap)}\u2013${6 - low}`;
+	const names = indices
+		.slice()
+		.sort((a, b) => a - b)
+		.map((index) => STRING_NAMES[index])
+		.join(" ");
+
+	return `strings ${numbers} (${names})`;
+}
+
+function Segmented<T extends string>({
+	options,
+	selected,
+	onSelect,
+}: {
+	options: Array<{ id: T; label: string }>;
+	selected: T | "";
+	onSelect: (id: T) => void;
+}) {
+	return (
+		<fieldset className="mini-segmented">
+			{options.map((option) => (
+				<button
+					aria-pressed={selected === option.id}
+					className={selected === option.id ? "is-active" : ""}
+					key={option.id}
+					type="button"
+					onClick={() => onSelect(option.id)}
+				>
+					{option.label}
+				</button>
+			))}
+		</fieldset>
 	);
 }
 

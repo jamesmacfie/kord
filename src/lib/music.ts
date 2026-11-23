@@ -2119,3 +2119,628 @@ function createId() {
 
 	return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+// ---------------------------------------------------------------------------
+// CAGED neck map
+//
+// The routine pane draws the whole neck for one key and colours every note by
+// the CAGED shape (or shapes) it sits in. A shape's territory is its pentatonic
+// box: two notes per string, and neighbouring boxes share the note where they
+// meet. That gives the two facts the views lean on. Every pentatonic note
+// belongs to exactly two shapes, and every other scale note falls strictly
+// between two box notes on its string, so it belongs to exactly one.
+// ---------------------------------------------------------------------------
+
+export type RoutineView =
+	| "chord-tones"
+	| "pentatonic"
+	| "switch"
+	| "scale"
+	| "triads"
+	| "thirds"
+	| "sixths";
+export type IntervalSource = "chord" | "scale";
+export type NeckStrings = number | "all";
+
+export interface RoutineViewDefinition {
+	id: RoutineView;
+	label: string;
+	description: string;
+}
+
+export interface NeckNote {
+	id: string;
+	stringIndex: number;
+	fret: number;
+	pc: number;
+	note: string;
+	degree: string;
+	/** Shapes this note sits in, ordered from the nut outward. */
+	shapes: CagedFamily[];
+	isRoot: boolean;
+	/** The switch view marks the parallel mode's third this way. */
+	isAlternate: boolean;
+}
+
+export interface NeckGroup {
+	id: string;
+	shapes: CagedFamily[];
+	/** Note ids ordered from the low string up, joined by a line. */
+	noteIds: string[];
+	/** Outlines are drawn faintly beneath a view, shapes at full strength. */
+	kind: "shape" | "outline";
+}
+
+export interface NeckSpan {
+	shape: CagedFamily;
+	from: number;
+	to: number;
+}
+
+export interface NeckMap {
+	notes: NeckNote[];
+	groups: NeckGroup[];
+	spans: NeckSpan[];
+}
+
+export interface NeckMapOptions {
+	tonicPc: number;
+	mode: KeyMode;
+	view: RoutineView;
+	strings?: NeckStrings;
+	source?: IntervalSource;
+	accidentalPreference?: AccidentalPreference;
+}
+
+export const NECK_FRETS = 15;
+export const STRING_COUNT = 6;
+
+export const ROUTINE_VIEWS: RoutineViewDefinition[] = [
+	{
+		id: "chord-tones",
+		label: "Chord tones",
+		description:
+			"Every root, third, and fifth of the tonic chord, with the five chord shapes outlined beneath.",
+	},
+	{
+		id: "pentatonic",
+		label: "Pentatonic",
+		description:
+			"The five pentatonic boxes. Each note is shared by the two shapes that meet on it.",
+	},
+	{
+		id: "switch",
+		label: "Major/minor switch",
+		description:
+			"Root and fifth stay put. The solid third is this key's; the faded third is the parallel key's, one fret away.",
+	},
+	{
+		id: "scale",
+		label: "Full scale",
+		description:
+			"The full scale. Notes added to the pentatonic sit inside a single shape.",
+	},
+	{
+		id: "triads",
+		label: "Triads",
+		description:
+			"The tonic triad in each CAGED shape, or its close voicings on one string set.",
+	},
+	{
+		id: "thirds",
+		label: "Thirds",
+		description:
+			"Pairs a third apart on two neighbouring strings, climbing the neck.",
+	},
+	{
+		id: "sixths",
+		label: "Sixths",
+		description:
+			"Pairs a sixth apart across a skipped string, climbing the neck.",
+	},
+];
+
+/** String sets, by the index of their lowest string (0 is low E). */
+export const NECK_STRING_SETS: Record<
+	"triads" | "thirds" | "sixths",
+	number[]
+> = {
+	triads: [3, 2, 1, 0],
+	thirds: [4, 3, 2, 1, 0],
+	sixths: [3, 2, 1, 0],
+};
+
+const STRING_SPAN: Record<"triads" | "thirds" | "sixths", number[]> = {
+	triads: [0, 1, 2],
+	thirds: [0, 1],
+	sixths: [0, 2],
+};
+
+const DEGREE_LABELS = [
+	"R",
+	"b2",
+	"2",
+	"b3",
+	"3",
+	"4",
+	"b5",
+	"5",
+	"b6",
+	"6",
+	"b7",
+	"7",
+];
+
+const NECK_PITCH_SETS: Record<
+	"chord" | "pentatonic" | "scale",
+	Record<KeyMode, number[]>
+> = {
+	chord: { major: [0, 4, 7], minor: [0, 3, 7] },
+	pentatonic: { major: [0, 2, 4, 7, 9], minor: [0, 3, 5, 7, 10] },
+	scale: { major: SCALE_INTERVALS.major, minor: SCALE_INTERVALS.minor },
+};
+
+// The five pentatonic boxes of A minor, as [low, high] frets per string from
+// low E. They climb the neck in order, so each box's high fret on a string is
+// the next box's low fret. C major uses the same five boxes under the names of
+// its own chord shapes, one step back round the CAGED cycle.
+const PENTATONIC_BOXES: Record<CagedFamily, Array<[number, number]>> = {
+	E: [
+		[5, 8],
+		[5, 7],
+		[5, 7],
+		[5, 7],
+		[5, 8],
+		[5, 8],
+	],
+	D: [
+		[8, 10],
+		[7, 10],
+		[7, 10],
+		[7, 9],
+		[8, 10],
+		[8, 10],
+	],
+	C: [
+		[10, 12],
+		[10, 12],
+		[10, 12],
+		[9, 12],
+		[10, 13],
+		[10, 12],
+	],
+	A: [
+		[12, 15],
+		[12, 15],
+		[12, 14],
+		[12, 14],
+		[13, 15],
+		[12, 15],
+	],
+	G: [
+		[15, 17],
+		[15, 17],
+		[14, 17],
+		[14, 17],
+		[15, 17],
+		[15, 17],
+	],
+};
+
+const MAJOR_SHAPE_BOX: Record<CagedFamily, CagedFamily> = {
+	C: "A",
+	A: "G",
+	G: "E",
+	E: "D",
+	D: "C",
+};
+
+// The tonic chord in each shape, in the same frame as the boxes: A minor and
+// C major. The minor C shape keeps the flat third on the top string, which the
+// open Cm grip has to drop but a moved-up one can reach.
+const NECK_VOICINGS: Record<KeyMode, Record<CagedFamily, number[]>> = {
+	minor: {
+		E: [5, 7, 7, 5, 5, 5],
+		D: [-1, -1, 7, 9, 10, 8],
+		C: [-1, 12, 10, 9, 10, 8],
+		A: [-1, 12, 14, 14, 13, 12],
+		G: [17, 15, 14, 14, 17, 17],
+	},
+	major: {
+		G: [8, 7, 5, 5, 5, 8],
+		E: [8, 10, 10, 9, 8, 8],
+		D: [-1, -1, 10, 12, 13, 12],
+		C: [-1, 15, 14, 12, 13, 12],
+		A: [-1, 15, 17, 17, 17, 15],
+	},
+};
+
+const NECK_REFERENCE_TONIC: Record<KeyMode, number> = { minor: 9, major: 0 };
+
+type RegionKind = "scale" | "chord";
+
+interface NeckContext {
+	tonicPc: number;
+	mode: KeyMode;
+	shift: number;
+	keyName?: string;
+	preference: AccidentalPreference;
+}
+
+interface Membership {
+	shape: CagedFamily;
+	low: number;
+}
+
+export function shapeWindow(
+	mode: KeyMode,
+	shape: CagedFamily,
+	stringIndex: number,
+	kind: RegionKind,
+): [number, number] {
+	const box = mode === "minor" ? shape : MAJOR_SHAPE_BOX[shape];
+	const [low, high] = PENTATONIC_BOXES[box][stringIndex];
+
+	if (kind === "scale") {
+		return [low, high];
+	}
+
+	// Chord views widen a box to take in its own chord shape, which only
+	// matters where the grip reaches past the box.
+	const voiced = NECK_VOICINGS[mode][shape][stringIndex];
+	return voiced < 0
+		? [low, high]
+		: [Math.min(low, voiced), Math.max(high, voiced)];
+}
+
+function neckOffsets(shift: number, low: number, high: number) {
+	const offsets: number[] = [];
+
+	for (let turn = -2; turn <= 2; turn += 1) {
+		const offset = shift + turn * 12;
+
+		if (high + offset >= 0 && low + offset <= NECK_FRETS) {
+			offsets.push(offset);
+		}
+	}
+
+	return offsets;
+}
+
+function membershipAt(
+	ctx: NeckContext,
+	stringIndex: number,
+	fret: number,
+	kind: RegionKind,
+): Membership[] {
+	const found: Membership[] = [];
+
+	for (const shape of CAGED_FAMILIES) {
+		const [low, high] = shapeWindow(ctx.mode, shape, stringIndex, kind);
+
+		for (const offset of neckOffsets(ctx.shift, low, high)) {
+			if (fret >= low + offset && fret <= high + offset) {
+				found.push({ shape, low: low + offset });
+			}
+		}
+	}
+
+	return found.sort((a, b) => a.low - b.low);
+}
+
+function makeNeckNote(
+	ctx: NeckContext,
+	stringIndex: number,
+	fret: number,
+	shapes: CagedFamily[],
+	isAlternate = false,
+): NeckNote {
+	const pc = mod(STRING_TUNING[stringIndex] + fret, 12);
+	const semis = mod(pc - ctx.tonicPc, 12);
+
+	return {
+		id: `${stringIndex}:${fret}`,
+		stringIndex,
+		fret,
+		pc,
+		note: noteNameForPc(pc, ctx.preference, ctx.keyName),
+		degree: DEGREE_LABELS[semis],
+		shapes,
+		isRoot: semis === 0,
+		isAlternate,
+	};
+}
+
+function semisAt(ctx: NeckContext, stringIndex: number, fret: number) {
+	return mod(STRING_TUNING[stringIndex] + fret - ctx.tonicPc, 12);
+}
+
+function voicingPlacements(ctx: NeckContext) {
+	const placements: Array<{ shape: CagedFamily; frets: number[] }> = [];
+
+	for (const shape of CAGED_FAMILIES) {
+		const frets = NECK_VOICINGS[ctx.mode][shape];
+		const sounded = frets.filter((fret) => fret >= 0);
+		const low = Math.min(...sounded);
+		const high = Math.max(...sounded);
+
+		// A grip only counts when all of it fits on the drawn neck. The cycle
+		// repeats every twelve frets, so another copy always does.
+		for (const offset of neckOffsets(ctx.shift, low, high)) {
+			if (low + offset >= 0 && high + offset <= NECK_FRETS) {
+				placements.push({
+					shape,
+					frets: frets.map((fret) => (fret < 0 ? -1 : fret + offset)),
+				});
+			}
+		}
+	}
+
+	return placements.sort(
+		(a, b) =>
+			Math.min(...a.frets.filter((fret) => fret >= 0)) -
+			Math.min(...b.frets.filter((fret) => fret >= 0)),
+	);
+}
+
+function neckSpans(ctx: NeckContext, kind: RegionKind): NeckSpan[] {
+	const spans: NeckSpan[] = [];
+
+	for (const shape of CAGED_FAMILIES) {
+		const windows = Array.from({ length: STRING_COUNT }, (_, stringIndex) =>
+			shapeWindow(ctx.mode, shape, stringIndex, kind),
+		);
+		const low = Math.min(...windows.map(([from]) => from));
+		const high = Math.max(...windows.map(([, to]) => to));
+
+		for (const offset of neckOffsets(ctx.shift, low, high)) {
+			spans.push({
+				shape,
+				from: Math.max(0, low + offset),
+				to: Math.min(NECK_FRETS, high + offset),
+			});
+		}
+	}
+
+	return spans.sort((a, b) => a.from - b.from || a.to - b.to);
+}
+
+/** Shapes every note shares, or if they share none, every shape any touches. */
+function sharedShapes(memberships: Membership[][]) {
+	const [first, ...rest] = memberships;
+	const shared = first
+		.map((item) => item.shape)
+		.filter((shape) =>
+			rest.every((list) => list.some((item) => item.shape === shape)),
+		);
+
+	if (shared.length > 0) {
+		return shared;
+	}
+
+	const union = memberships.flat().sort((a, b) => a.low - b.low);
+	return uniqueStrings(union.map((item) => item.shape)) as CagedFamily[];
+}
+
+export function buildNeckMap(options: NeckMapOptions): NeckMap {
+	const { mode, view } = options;
+	const tonicPc = mod(options.tonicPc, 12);
+	const key = KEY_DEFINITIONS.find(
+		(item) => item.mode === mode && item.tonicPc === tonicPc,
+	);
+	const ctx: NeckContext = {
+		tonicPc,
+		mode,
+		shift: mod(tonicPc - NECK_REFERENCE_TONIC[mode], 12),
+		keyName: key?.name,
+		preference: options.accidentalPreference ?? "smart",
+	};
+	const intervalKind: RegionKind =
+		(view === "thirds" || view === "sixths") && options.source === "scale"
+			? "scale"
+			: "chord";
+	const spans = neckSpans(
+		ctx,
+		view === "thirds" || view === "sixths"
+			? intervalKind
+			: view === "pentatonic" || view === "scale"
+				? "scale"
+				: "chord",
+	);
+
+	switch (view) {
+		case "pentatonic":
+		case "scale":
+			return {
+				notes: scanNeck(ctx, NECK_PITCH_SETS[view][mode], "scale"),
+				groups: [],
+				spans,
+			};
+		case "chord-tones":
+			return {
+				notes: scanNeck(ctx, NECK_PITCH_SETS.chord[mode], "chord"),
+				groups: voicingGroups(ctx, "outline"),
+				spans,
+			};
+		case "switch": {
+			const alternate = mode === "major" ? 3 : 4;
+			const notes = scanNeck(
+				ctx,
+				[0, 3, 4, 7],
+				"chord",
+				(semis) => semis === alternate,
+			);
+			return { notes, groups: voicingGroups(ctx, "outline"), spans };
+		}
+		case "triads":
+			return options.strings === undefined || options.strings === "all"
+				? fullShapeMap(ctx, spans)
+				: stackedMap(ctx, options.strings, "triads", "chord", spans);
+		case "thirds":
+		case "sixths":
+			return stackedMap(
+				ctx,
+				options.strings === undefined || options.strings === "all"
+					? NECK_STRING_SETS[view][0]
+					: options.strings,
+				view,
+				intervalKind,
+				spans,
+			);
+	}
+}
+
+function scanNeck(
+	ctx: NeckContext,
+	pitchSet: number[],
+	kind: RegionKind,
+	isAlternate: (semis: number) => boolean = () => false,
+) {
+	const notes: NeckNote[] = [];
+
+	for (let stringIndex = 0; stringIndex < STRING_COUNT; stringIndex += 1) {
+		for (let fret = 0; fret <= NECK_FRETS; fret += 1) {
+			const semis = semisAt(ctx, stringIndex, fret);
+
+			if (!pitchSet.includes(semis)) {
+				continue;
+			}
+
+			const shapes = membershipAt(ctx, stringIndex, fret, kind).map(
+				(item) => item.shape,
+			);
+			notes.push(
+				makeNeckNote(ctx, stringIndex, fret, shapes, isAlternate(semis)),
+			);
+		}
+	}
+
+	return notes;
+}
+
+function voicingGroups(ctx: NeckContext, kind: NeckGroup["kind"]) {
+	return voicingPlacements(ctx).map(
+		(placement, index): NeckGroup => ({
+			id: `${placement.shape}-${index}`,
+			shapes: [placement.shape],
+			kind,
+			noteIds: placement.frets.flatMap((fret, stringIndex) =>
+				fret < 0 ? [] : [`${stringIndex}:${fret}`],
+			),
+		}),
+	);
+}
+
+function fullShapeMap(ctx: NeckContext, spans: NeckSpan[]): NeckMap {
+	const groups = voicingGroups(ctx, "shape");
+	const shapesById = new Map<string, CagedFamily[]>();
+
+	for (const group of groups) {
+		for (const id of group.noteIds) {
+			const shapes = shapesById.get(id) ?? [];
+			shapes.push(group.shapes[0]);
+			shapesById.set(id, shapes);
+		}
+	}
+
+	const notes = Array.from(shapesById, ([id, shapes]) => {
+		const [stringIndex, fret] = id.split(":").map(Number);
+		return makeNeckNote(ctx, stringIndex, fret, shapes);
+	}).sort((a, b) => a.stringIndex - b.stringIndex || a.fret - b.fret);
+
+	return { notes, groups, spans };
+}
+
+// Triads, thirds, and sixths are all a stack of notes, one per string, where
+// each note is the next step up a ladder of pitches. Triads climb the chord
+// tones. Thirds climb the ladder by one rung, sixths by five rungs of the scale
+// (or one rung down the chord, turned upside down).
+function stackedMap(
+	ctx: NeckContext,
+	lowString: number,
+	kind: "triads" | "thirds" | "sixths",
+	region: RegionKind,
+	spans: NeckSpan[],
+): NeckMap {
+	const offsets = STRING_SPAN[kind];
+	const strings = offsets.map((offset) => lowString + offset);
+
+	if (strings[strings.length - 1] >= STRING_COUNT) {
+		return { notes: [], groups: [], spans };
+	}
+
+	const chord = NECK_PITCH_SETS.chord[ctx.mode];
+	const scale = NECK_PITCH_SETS.scale[ctx.mode];
+	const onChord = kind === "triads" || region === "chord";
+	const ladder = onChord ? chord : scale;
+	// On chord tones a third is one rung up and a sixth is two (a third turned
+	// upside down). On the scale they are two rungs and five.
+	const rungs = { triads: [1, 1], thirds: [1, 2], sixths: [2, 5] }[kind];
+	const rung = onChord ? rungs[0] : rungs[1];
+
+	const notes: NeckNote[] = [];
+	const groups: NeckGroup[] = [];
+
+	for (let fret = 0; fret <= NECK_FRETS; fret += 1) {
+		const start = ladder.indexOf(semisAt(ctx, strings[0], fret));
+
+		if (start < 0) {
+			continue;
+		}
+
+		const placed: Array<{ stringIndex: number; fret: number }> = [
+			{ stringIndex: strings[0], fret },
+		];
+		let pitch = STRING_MIDI[strings[0]] + fret;
+		let index = start;
+
+		for (const stringIndex of strings.slice(1)) {
+			pitch += intervalUp(ladder, index, rung);
+			index += rung;
+			placed.push({ stringIndex, fret: pitch - STRING_MIDI[stringIndex] });
+		}
+
+		if (!placed.every((item) => item.fret >= 0 && item.fret <= NECK_FRETS)) {
+			continue;
+		}
+
+		const rise = pitch - (STRING_MIDI[strings[0]] + fret);
+
+		// On chord tones the fifth up to the root is a fourth, and the root up
+		// to the fifth is a fifth, so those rungs are not thirds or sixths.
+		if (kind === "thirds" && (rise < 3 || rise > 4)) {
+			continue;
+		}
+
+		if (kind === "sixths" && (rise < 8 || rise > 9)) {
+			continue;
+		}
+
+		const memberships = placed.map((item) =>
+			membershipAt(ctx, item.stringIndex, item.fret, region),
+		);
+		const shapes = sharedShapes(memberships);
+		const groupNotes = placed.map((item) =>
+			makeNeckNote(ctx, item.stringIndex, item.fret, shapes),
+		);
+
+		notes.push(...groupNotes);
+		groups.push({
+			id: `${kind}-${fret}`,
+			shapes,
+			kind: "shape",
+			noteIds: groupNotes.map((note) => note.id),
+		});
+	}
+
+	return { notes, groups, spans };
+}
+
+/** Semitones from rung `index` of a ladder to `rungs` rungs above it. */
+function intervalUp(ladder: number[], index: number, rungs: number) {
+	const size = ladder.length;
+	const from = ladder[index % size] + 12 * Math.floor(index / size);
+	const target = index + rungs;
+	const to = ladder[target % size] + 12 * Math.floor(target / size);
+	return to - from;
+}
